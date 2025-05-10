@@ -51,7 +51,7 @@
 
 #include <ctype.h>
 
-#include "curlx.h" /* from the private lib dir */
+#include <curlx.h> /* from the private lib dir */
 #include "getpart.h"
 #include "util.h"
 #include "server_sockaddr.h"
@@ -668,7 +668,7 @@ dnsd_cleanup:
 
   if(got_exit_signal) {
     logmsg("========> %s dnsd (port: %d pid: %ld) exits with signal (%d)",
-           ipv_inuse, (int)port, (long)curlx_getpid(), exit_signal);
+           ipv_inuse, (int)port, (long)our_getpid(), exit_signal);
     /*
      * To properly set the return status of the process we
      * must raise the same signal SIGINT or SIGTERM that we

@@ -29,7 +29,7 @@
 #include "strcase.h"
 #include "sendf.h"
 #include "headers.h"
-#include "strparse.h"
+#include "curlx/strparse.h"
 
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -312,6 +312,11 @@ CURLcode Curl_headers_push(struct Curl_easy *data, const char *header,
       if(!hlen)
         return CURLE_WEIRD_SERVER_REPLY;
     }
+  }
+  if(Curl_llist_count(&data->state.httphdrs) >= MAX_HTTP_RESP_HEADER_COUNT) {
+    failf(data, "Too many response headers, %d is max",
+          MAX_HTTP_RESP_HEADER_COUNT);
+    return CURLE_TOO_LARGE;
   }
 
   hs = calloc(1, sizeof(*hs) + hlen);

@@ -1,5 +1,3 @@
-#ifndef HEADER_CURL_VERSION_WIN32_H
-#define HEADER_CURL_VERSION_WIN32_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -7,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) Steve Holme, <steve_holme@hotmail.com>.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -23,34 +21,30 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
+#include "test.h"
+#include "curl_memory.h"
 
-#include "curl_setup.h"
+#ifndef CURL_STATICLIB
 
-#ifdef _WIN32
+#if defined(_MSC_VER) && defined(_DLL)
+#  pragma warning(push)
+#  pragma warning(disable:4232) /* MSVC extension, dllimport identity */
+#endif
 
-/* Version condition */
-typedef enum {
-  VERSION_LESS_THAN,
-  VERSION_LESS_THAN_EQUAL,
-  VERSION_EQUAL,
-  VERSION_GREATER_THAN_EQUAL,
-  VERSION_GREATER_THAN
-} VersionCondition;
+/* when libcurl is *not* static and we build libtests, the global pointers in
+   curl_memory.c is not available unless we provide them like this */
 
-/* Platform identifier */
-typedef enum {
-  PLATFORM_DONT_CARE,
-  PLATFORM_WINDOWS,
-  PLATFORM_WINNT
-} PlatformIdentifier;
+curl_malloc_callback Curl_cmalloc = (curl_malloc_callback)malloc;
+curl_free_callback Curl_cfree = (curl_free_callback)free;
+curl_realloc_callback Curl_crealloc = (curl_realloc_callback)realloc;
+curl_strdup_callback Curl_cstrdup = (curl_strdup_callback)strdup;
+curl_calloc_callback Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(_WIN32) && defined(UNICODE)
+curl_wcsdup_callback Curl_cwcsdup = wcsdup;
+#endif
 
-/* This is used to verify if we are running on a specific Windows version */
-bool curlx_verify_windows_version(const unsigned int majorVersion,
-                                  const unsigned int minorVersion,
-                                  const unsigned int buildVersion,
-                                  const PlatformIdentifier platform,
-                                  const VersionCondition condition);
+#if defined(_MSC_VER) && defined(_DLL)
+#  pragma warning(pop)
+#endif
 
-#endif /* _WIN32 */
-
-#endif /* HEADER_CURL_VERSION_WIN32_H */
+#endif /* !CURL_STATICLIB */

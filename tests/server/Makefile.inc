@@ -30,33 +30,29 @@ MEMDEBUG = \
 
 CURLX_SRCS = \
   ../../lib/mprintf.c \
-  ../../lib/nonblock.c \
-  ../../lib/strparse.c \
+  ../../lib/curlx/nonblock.c \
+  ../../lib/curlx/strparse.c \
   ../../lib/strequal.c \
-  ../../lib/warnless.c \
-  ../../lib/timediff.c \
-  ../../lib/timeval.c \
-  ../../lib/dynbuf.c \
+  ../../lib/curlx/warnless.c \
+  ../../lib/curlx/timediff.c \
+  ../../lib/curlx/timeval.c \
+  ../../lib/curlx/dynbuf.c \
   ../../lib/strcase.c \
-  ../../lib/strdup.c \
-  ../../lib/curl_get_line.c \
-  ../../lib/curl_multibyte.c \
-  ../../lib/version_win32.c
+  ../../lib/curlx/multibyte.c \
+  ../../lib/curlx/version_win32.c
 
 CURLX_HDRS = \
-  ../../lib/curlx.h \
+  ../../lib/curlx/curlx.h \
   ../../lib/curl_ctype.h \
-  ../../lib/nonblock.h \
+  ../../lib/curlx/nonblock.h \
   ../../lib/strcase.h \
-  ../../lib/warnless.h \
-  ../../lib/timediff.h \
-  ../../lib/timeval.h \
-  ../../lib/dynbuf.h \
+  ../../lib/curlx/warnless.h \
+  ../../lib/curlx/timediff.h \
+  ../../lib/curlx/timeval.h \
+  ../../lib/curlx/dynbuf.h \
   ../../lib/strcase.h \
-  ../../lib/strdup.h \
-  ../../lib/curl_get_line.h \
-  ../../lib/curl_multibyte.h \
-  ../../lib/version_win32.h
+  ../../lib/curlx/multibyte.h \
+  ../../lib/curlx/version_win32.h
 
 UTIL = \
   getpart.c \
@@ -64,17 +60,17 @@ UTIL = \
   util.c \
   util.h \
   server_setup.h \
-  ../../lib/base64.c \
-  ../../lib/curl_base64.h \
-  ../../lib/strerror.c \
-  ../../lib/strerror.h
+  ../../lib/curlx/base64.c \
+  ../../lib/curlx/base64.h \
+  ../../lib/curlx/winapi.c \
+  ../../lib/curlx/winapi.h
 
 FIRSTFILES = \
   first.c \
   first.h
 
 INET_PTON = \
-  ../../lib/inet_pton.c
+  ../../lib/curlx/inet_pton.c
 
 resolve_SOURCES = $(MEMDEBUG) $(CURLX_SRCS) $(CURLX_HDRS) $(UTIL) \
   resolve.c

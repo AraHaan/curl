@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_TIMEDIFF_H
-#define HEADER_CURL_TIMEDIFF_H
+#ifndef HEADER_CURL_VERSION_WIN32_H
+#define HEADER_CURL_VERSION_WIN32_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Steve Holme, <steve_holme@hotmail.com>.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -24,29 +24,33 @@
  *
  ***************************************************************************/
 
-#include "curl_setup.h"
+#include "../curl_setup.h"
 
-/* Use a larger type even for 32-bit time_t systems so that we can keep
-   microsecond accuracy in it */
-typedef curl_off_t timediff_t;
-#define FMT_TIMEDIFF_T FMT_OFF_T
+#ifdef _WIN32
 
-#define TIMEDIFF_T_MAX CURL_OFF_T_MAX
-#define TIMEDIFF_T_MIN CURL_OFF_T_MIN
+/* Version condition */
+typedef enum {
+  VERSION_LESS_THAN,
+  VERSION_LESS_THAN_EQUAL,
+  VERSION_EQUAL,
+  VERSION_GREATER_THAN_EQUAL,
+  VERSION_GREATER_THAN
+} VersionCondition;
 
-/*
- * Converts number of milliseconds into a timeval structure.
- *
- * Return values:
- *    NULL IF tv is NULL or ms < 0 (eg. no timeout -> blocking select)
- *    tv with 0 in both fields IF ms == 0 (eg. 0ms timeout -> polling select)
- *    tv with converted fields IF ms > 0 (eg. >0ms timeout -> waiting select)
- */
-struct timeval *curlx_mstotv(struct timeval *tv, timediff_t ms);
+/* Platform identifier */
+typedef enum {
+  PLATFORM_DONT_CARE,
+  PLATFORM_WINDOWS,
+  PLATFORM_WINNT
+} PlatformIdentifier;
 
-/*
- * Converts a timeval structure into number of milliseconds.
- */
-timediff_t curlx_tvtoms(struct timeval *tv);
+/* This is used to verify if we are running on a specific Windows version */
+bool curlx_verify_windows_version(const unsigned int majorVersion,
+                                  const unsigned int minorVersion,
+                                  const unsigned int buildVersion,
+                                  const PlatformIdentifier platform,
+                                  const VersionCondition condition);
 
-#endif /* HEADER_CURL_TIMEDIFF_H */
+#endif /* _WIN32 */
+
+#endif /* HEADER_CURL_VERSION_WIN32_H */

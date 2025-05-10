@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_BASE64_H
-#define HEADER_CURL_BASE64_H
+#ifndef HEADER_CURLX_WINAPI_H
+#define HEADER_CURLX_WINAPI_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -24,18 +24,10 @@
  *
  ***************************************************************************/
 
-#ifndef BUILDING_LIBCURL
-/* this renames functions so that the tool code can use the same code
-   without getting symbol collisions */
-#define Curl_base64_encode(a,b,c,d) curlx_base64_encode(a,b,c,d)
-#define Curl_base64url_encode(a,b,c,d) curlx_base64url_encode(a,b,c,d)
-#define Curl_base64_decode(a,b,c) curlx_base64_decode(a,b,c)
+#ifdef _WIN32
+#define WINAPI_ERROR_LEN 100
+const char *curlx_get_winapi_error(int err, char *buf, size_t buflen);
+const char *curlx_winapi_strerror(DWORD err, char *buf, size_t buflen);
 #endif
 
-CURLcode Curl_base64_encode(const char *inputbuff, size_t insize,
-                            char **outptr, size_t *outlen);
-CURLcode Curl_base64url_encode(const char *inputbuff, size_t insize,
-                               char **outptr, size_t *outlen);
-CURLcode Curl_base64_decode(const char *src,
-                            unsigned char **outptr, size_t *outlen);
-#endif /* HEADER_CURL_BASE64_H */
+#endif /* HEADER_CURLX_WINAPI_H */
