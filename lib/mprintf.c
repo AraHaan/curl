@@ -23,17 +23,13 @@
  */
 
 #include "curl_setup.h"
-#include "dynbuf.h"
+#include "curlx/dynbuf.h"
 #include "curl_printf.h"
-#include "strparse.h"
+#include "curlx/strparse.h"
 
 #include "curl_memory.h"
 /* The last #include file should be: */
 #include "memdebug.h"
-
-/*
- * If SIZEOF_SIZE_T has not been defined, default to the size of long.
- */
 
 #ifdef HAVE_LONGLONG
 #  define LONG_LONG_TYPE long long
@@ -68,10 +64,10 @@
 #endif
 
 /* Lower-case digits.  */
-static const char lower_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+const unsigned char Curl_ldigits[] = "0123456789abcdef";
 
 /* Upper-case digits.  */
-static const char upper_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const unsigned char Curl_udigits[] = "0123456789ABCDEF";
 
 #define OUTCHAR(x)                                      \
   do {                                                  \
@@ -173,8 +169,8 @@ struct asprintf {
 static int dollarstring(const char *p, const char **end)
 {
   curl_off_t num;
-  if(Curl_str_number(&p, &num, MAX_PARAMETERS) ||
-     Curl_str_single(&p, '$') || !num)
+  if(curlx_str_number(&p, &num, MAX_PARAMETERS) ||
+     curlx_str_single(&p, '$') || !num)
     return -1;
   *end = p;
   return (int)num - 1;
@@ -306,7 +302,7 @@ static int parsefmt(const char *format,
             is_neg = ('-' == *fmt);
             if(is_neg)
               fmt++;
-            if(Curl_str_number(&fmt, &num, INT_MAX))
+            if(curlx_str_number(&fmt, &num, INT_MAX))
               return PFMT_PREC;
             precision = (int)num;
             if(is_neg)
@@ -378,7 +374,7 @@ static int parsefmt(const char *format,
           curl_off_t num;
           flags |= FLAGS_WIDTH;
           fmt--;
-          if(Curl_str_number(&fmt, &num, INT_MAX))
+          if(curlx_str_number(&fmt, &num, INT_MAX))
             return PFMT_WIDTH;
           width = (int)num;
           break;
@@ -649,7 +645,7 @@ static int formatf(
   va_list ap_save) /* list of parameters */
 {
   static const char nilstr[] = "(nil)";
-  const char *digits = lower_digits;   /* Base-36 digits for numbers.  */
+  const unsigned char *digits = Curl_ldigits;
   int done = 0;   /* number of characters written  */
   int i;
   int ocount = 0; /* number of output segments */
@@ -752,7 +748,7 @@ static int formatf(
       }
       else if(flags & FLAGS_HEX) {
         /* Hexadecimal unsigned integer */
-        digits = (flags & FLAGS_UPPER) ? upper_digits : lower_digits;
+        digits = (flags & FLAGS_UPPER) ? Curl_udigits : Curl_ldigits;
         base = 16;
         is_neg = FALSE;
       }
@@ -781,6 +777,7 @@ number:
 
       /* Put the number in WORK.  */
       w = workend;
+      DEBUGASSERT(base <= 16);
       switch(base) {
       case 10:
         while(num > 0) {
@@ -898,7 +895,7 @@ number:
       if(iptr->val.ptr) {
         /* If the pointer is not NULL, write it as a %#x spec.  */
         base = 16;
-        digits = (flags & FLAGS_UPPER) ? upper_digits : lower_digits;
+        digits = (flags & FLAGS_UPPER) ? Curl_udigits : Curl_ldigits;
         is_alt = TRUE;
         num = (size_t) iptr->val.ptr;
         is_neg = FALSE;
@@ -1087,7 +1084,7 @@ int curl_msnprintf(char *buffer, size_t maxlength, const char *format, ...)
 static int alloc_addbyter(unsigned char outc, void *f)
 {
   struct asprintf *infop = f;
-  CURLcode result = Curl_dyn_addn(infop->b, &outc, 1);
+  CURLcode result = curlx_dyn_addn(infop->b, &outc, 1);
   if(result) {
     infop->merr = result == CURLE_TOO_LARGE ? MERR_TOO_LARGE : MERR_MEM;
     return 1 ; /* fail */
@@ -1096,7 +1093,7 @@ static int alloc_addbyter(unsigned char outc, void *f)
 }
 
 /* appends the formatted string, returns MERR error code */
-int Curl_dyn_vprintf(struct dynbuf *dyn, const char *format, va_list ap_save)
+int curlx_dyn_vprintf(struct dynbuf *dyn, const char *format, va_list ap_save)
 {
   struct asprintf info;
   info.b = dyn;
@@ -1104,7 +1101,7 @@ int Curl_dyn_vprintf(struct dynbuf *dyn, const char *format, va_list ap_save)
 
   (void)formatf(&info, alloc_addbyter, format, ap_save);
   if(info.merr) {
-    Curl_dyn_free(info.b);
+    curlx_dyn_free(info.b);
     return info.merr;
   }
   return 0;
@@ -1115,16 +1112,16 @@ char *curl_mvaprintf(const char *format, va_list ap_save)
   struct asprintf info;
   struct dynbuf dyn;
   info.b = &dyn;
-  Curl_dyn_init(info.b, DYN_APRINTF);
+  curlx_dyn_init(info.b, DYN_APRINTF);
   info.merr = MERR_OK;
 
   (void)formatf(&info, alloc_addbyter, format, ap_save);
   if(info.merr) {
-    Curl_dyn_free(info.b);
+    curlx_dyn_free(info.b);
     return NULL;
   }
-  if(Curl_dyn_len(info.b))
-    return Curl_dyn_ptr(info.b);
+  if(curlx_dyn_len(info.b))
+    return curlx_dyn_ptr(info.b);
   return strdup("");
 }
 

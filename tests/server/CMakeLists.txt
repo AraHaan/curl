@@ -50,6 +50,7 @@ foreach(_target IN LISTS SERVERPROGS)
   target_include_directories(${_target_name} PRIVATE
     "${PROJECT_BINARY_DIR}/lib"           # for "curl_config.h"
     "${PROJECT_SOURCE_DIR}/lib"           # for "curl_setup.h"
+    "${PROJECT_SOURCE_DIR}/lib/curlx"     # for curlx
     "${PROJECT_SOURCE_DIR}/src"           # for "tool_binmode.h", "tool_xattr.h"
     "${PROJECT_SOURCE_DIR}/tests/server"  # for "first.h"
   )
@@ -57,6 +58,7 @@ foreach(_target IN LISTS SERVERPROGS)
   if(ENABLE_SERVER_DEBUG)
     set_property(TARGET ${_target_name} APPEND PROPERTY COMPILE_DEFINITIONS "${CURL_DEBUG_MACROS}")
   endif()
+  set_property(TARGET ${_target_name} APPEND PROPERTY COMPILE_DEFINITIONS "WITHOUT_LIBCURL")
   # Test servers simply are standalone programs that do not use libcurl
   # library.  For convenience and to ease portability of these servers,
   # some source code files from the libcurl subdirectory are also used

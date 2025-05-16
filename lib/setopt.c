@@ -43,7 +43,7 @@
 #include "strcase.h"
 #include "share.h"
 #include "vtls/vtls.h"
-#include "warnless.h"
+#include "curlx/warnless.h"
 #include "sendf.h"
 #include "http2.h"
 #include "setopt.h"
@@ -3070,9 +3070,7 @@ CURLcode curl_easy_setopt(CURL *d, CURLoption tag, ...)
   result = Curl_vsetopt(data, tag, arg);
 
   va_end(arg);
-#ifdef DEBUGBUILD
   if(result == CURLE_BAD_FUNCTION_ARGUMENT)
-    infof(data, "setopt arg 0x%x returned CURLE_BAD_FUNCTION_ARGUMENT", tag);
-#endif
+    failf(data, "setopt 0x%x got bad argument", tag);
   return result;
 }

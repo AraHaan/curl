@@ -145,7 +145,7 @@ typedef unsigned int curl_prot_t;
 #include <netinet/in6.h>
 #endif
 
-#include "timeval.h"
+#include "curlx/timeval.h"
 
 #include <curl/curl.h>
 
@@ -153,7 +153,7 @@ typedef unsigned int curl_prot_t;
 #include "hostip.h"
 #include "hash.h"
 #include "splay.h"
-#include "dynbuf.h"
+#include "curlx/dynbuf.h"
 #include "dynhds.h"
 #include "request.h"
 #include "netrc.h"
@@ -861,25 +861,6 @@ struct connectdata {
   struct negotiatedata negotiate; /* state data for host Negotiate auth */
   struct negotiatedata proxyneg; /* state data for proxy Negotiate auth */
 #endif
-
-  union {
-#ifdef USE_SSH
-    struct ssh_conn sshc;
-#endif
-#ifndef CURL_DISABLE_IMAP
-    struct imap_conn imapc;
-#endif
-#ifndef CURL_DISABLE_SMTP
-    struct smtp_conn smtpc;
-#endif
-#ifndef CURL_DISABLE_RTSP
-    struct rtsp_conn rtspc;
-#endif
-#ifdef USE_LIBRTMP
-    void *rtmp;
-#endif
-    unsigned int unused:1; /* avoids empty union */
-  } proto;
 
 #ifdef USE_UNIX_SOCKETS
   char *unix_domain_socket;

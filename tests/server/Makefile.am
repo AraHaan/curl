@@ -36,6 +36,7 @@ AUTOMAKE_OPTIONS = foreign nostdinc
 AM_CPPFLAGS = -I$(top_srcdir)/include        \
               -I$(top_builddir)/lib          \
               -I$(top_srcdir)/lib            \
+              -I$(top_srcdir)/lib/curlx      \
               -I$(top_srcdir)/src            \
               -I$(top_srcdir)/tests/server
 
@@ -55,6 +56,8 @@ if CURLDEBUG
 AM_CPPFLAGS += -DCURLDEBUG
 endif
 endif
+
+AM_CPPFLAGS += -DWITHOUT_LIBCURL
 
 # Makefile.inc provides neat definitions
 include Makefile.inc

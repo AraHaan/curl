@@ -31,8 +31,8 @@
 #include "vauth.h"
 #include "../urldata.h"
 #include "../curl_ntlm_core.h"
-#include "../warnless.h"
-#include "../curl_multibyte.h"
+#include "../curlx/warnless.h"
+#include "../curlx/multibyte.h"
 #include "../sendf.h"
 #include "../strdup.h"
 

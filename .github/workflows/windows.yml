@@ -572,6 +572,7 @@ jobs:
     steps:
       - name: 'install packages'
         timeout-minutes: 5
+        # zizmor: ignore[template-injection]
         run: |
           sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get -o Dpkg::Use-Pty=0 install mingw-w64 \
@@ -686,6 +687,8 @@ jobs:
           ls -l
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
 
       - name: 'configure'
         run: |

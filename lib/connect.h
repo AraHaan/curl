@@ -25,9 +25,9 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#include "nonblock.h" /* for curlx_nonblock(), formerly Curl_nonblock() */
+#include "curlx/nonblock.h" /* for curlx_nonblock() */
 #include "sockaddr.h"
-#include "timeval.h"
+#include "curlx/timeval.h"
 
 struct Curl_dns_entry;
 struct ip_quadruple;

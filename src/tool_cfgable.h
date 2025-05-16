@@ -23,6 +23,8 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
+
+#include <curl/mprintf.h>
 #include "tool_setup.h"
 #include "tool_sdecls.h"
 #include "tool_urlglob.h"
@@ -36,6 +38,29 @@
 #define BIT(x) unsigned int x:1
 #endif
 #endif
+
+/* make the tool use the libcurl *printf family */
+# undef printf
+# undef fprintf
+# undef msnprintf
+# undef vprintf
+# undef vfprintf
+# undef mvsnprintf
+# undef aprintf
+# undef vaprintf
+# define printf curl_mprintf
+# define fprintf curl_mfprintf
+# define msnprintf curl_msnprintf
+# define vprintf curl_mvprintf
+# define vfprintf curl_mvfprintf
+# define mvsnprintf curl_mvsnprintf
+# define aprintf curl_maprintf
+# define vaprintf curl_mvaprintf
+
+#define checkprefix(a,b)    curl_strnequal(b, STRCONST(a))
+
+#define tool_safefree(ptr)                      \
+  do { free((ptr)); (ptr) = NULL;} while(0)
 
 struct GlobalConfig;
 
@@ -55,7 +80,7 @@ struct State {
 
 struct OperationConfig {
   struct State state;             /* for create_transfer() */
-  struct curlx_dynbuf postdata;
+  struct dynbuf postdata;
   char *useragent;
   struct curl_slist *cookies;  /* cookies to serialize into a single line */
   char *cookiejar;          /* write to this file */
@@ -325,7 +350,6 @@ struct GlobalConfig {
   FILE *trace_stream;
   char *libcurl;                  /* Output libcurl code to this filename */
   char *ssl_sessions;             /* file to load/save SSL session tickets */
-  char *help_category;            /* The help category, if set */
   char *knownhosts;               /* known host path, if set. curl_free()
                                      this */
   struct tool_var *variables;
