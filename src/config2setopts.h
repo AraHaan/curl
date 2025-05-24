@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_VERSION_WIN32_H
-#define HEADER_CURL_VERSION_WIN32_H
+#ifndef HEADER_CURL_CONFIG2SETOPTS_H
+#define HEADER_CURL_CONFIG2SETOPTS_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) Steve Holme, <steve_holme@hotmail.com>.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -24,33 +24,10 @@
  *
  ***************************************************************************/
 
-#include "curl_setup.h"
+CURLcode config2setopts(struct GlobalConfig *global,
+                        struct OperationConfig *config,
+                        struct per_transfer *per,
+                        CURL *curl,
+                        CURLSH *share);
 
-#ifdef _WIN32
-
-/* Version condition */
-typedef enum {
-  VERSION_LESS_THAN,
-  VERSION_LESS_THAN_EQUAL,
-  VERSION_EQUAL,
-  VERSION_GREATER_THAN_EQUAL,
-  VERSION_GREATER_THAN
-} VersionCondition;
-
-/* Platform identifier */
-typedef enum {
-  PLATFORM_DONT_CARE,
-  PLATFORM_WINDOWS,
-  PLATFORM_WINNT
-} PlatformIdentifier;
-
-/* This is used to verify if we are running on a specific Windows version */
-bool curlx_verify_windows_version(const unsigned int majorVersion,
-                                  const unsigned int minorVersion,
-                                  const unsigned int buildVersion,
-                                  const PlatformIdentifier platform,
-                                  const VersionCondition condition);
-
-#endif /* _WIN32 */
-
-#endif /* HEADER_CURL_VERSION_WIN32_H */
+#endif /* HEADER_CURL_CONFIG2SETOPTS_H */

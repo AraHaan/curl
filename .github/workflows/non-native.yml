@@ -35,6 +35,9 @@ concurrency:
 
 permissions: {}
 
+env:
+  CURL_CI: github
+
 jobs:
   netbsd:
     name: 'NetBSD, CM clang openssl ${{ matrix.arch }}'
@@ -48,7 +51,7 @@ jobs:
         with:
           persist-credentials: false
       - name: 'cmake'
-        uses: cross-platform-actions/action@fe0167d8082ac584754ef3ffb567fded22642c7d # v0.27.0
+        uses: cross-platform-actions/action@97419d18f6470332677e345e9df97cdc71244ead # v0.28.0
         with:
           operating_system: 'netbsd'
           version: '10.1'
@@ -88,10 +91,10 @@ jobs:
         with:
           persist-credentials: false
       - name: 'cmake'
-        uses: cross-platform-actions/action@fe0167d8082ac584754ef3ffb567fded22642c7d # v0.27.0
+        uses: cross-platform-actions/action@97419d18f6470332677e345e9df97cdc71244ead # v0.28.0
         with:
           operating_system: 'openbsd'
-          version: '7.5'
+          version: '7.7'
           architecture: ${{ matrix.arch }}
           run: |
             # https://openbsd.app/
@@ -134,13 +137,14 @@ jobs:
           persist-credentials: false
       - name: 'autotools'
         if: ${{ matrix.build == 'autotools' }}
-        uses: cross-platform-actions/action@fe0167d8082ac584754ef3ffb567fded22642c7d # v0.27.0
+        uses: cross-platform-actions/action@97419d18f6470332677e345e9df97cdc71244ead # v0.28.0
         with:
           operating_system: 'freebsd'
-          version: '14.1'
+          version: '14.2'
           architecture: ${{ matrix.arch }}
           run: |
             export MAKEFLAGS=-j3
+            export CURL_CI=github
             # https://ports.freebsd.org/
             time sudo pkg install -y autoconf automake libtool \
               pkgconf brotli openldap26-client libidn2 libnghttp2 stunnel py311-impacket
@@ -176,7 +180,7 @@ jobs:
 
       - name: 'cmake'
         if: ${{ matrix.build == 'cmake' }}
-        uses: cross-platform-actions/action@fe0167d8082ac584754ef3ffb567fded22642c7d # v0.27.0
+        uses: cross-platform-actions/action@97419d18f6470332677e345e9df97cdc71244ead # v0.28.0
         with:
           operating_system: 'freebsd'
           version: '14.1'
@@ -229,6 +233,7 @@ jobs:
             set -e
             ln -s /usr/bin/gcpp /usr/bin/cpp  # Some tests expect `cpp`, which is named `gcpp` in this env.
             export MAKEFLAGS=-j3
+            export CURL_CI=github
             time autoreconf -fi
             mkdir bld && cd bld && time ../configure --enable-unity --enable-test-bundles --enable-debug --enable-warnings --enable-werror \
               --prefix="${HOME}"/install \

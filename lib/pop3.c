@@ -76,7 +76,7 @@
 #include "bufref.h"
 #include "curl_sasl.h"
 #include "curl_md5.h"
-#include "warnless.h"
+#include "curlx/warnless.h"
 #include "strdup.h"
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -311,6 +311,9 @@ static bool pop3_endofresp(struct Curl_easy *data, struct connectdata *conn,
 {
   struct pop3_conn *pop3c = Curl_conn_meta_get(conn, CURL_META_POP3_CONN);
   (void)data;
+  DEBUGASSERT(pop3c);
+  if(!pop3c) /* internal error */
+    return TRUE;
 
   /* Do we have an error response? */
   if(len >= 4 && !memcmp("-ERR", line, 4)) {
@@ -364,7 +367,7 @@ static CURLcode pop3_get_message(struct Curl_easy *data, struct bufref *out)
 
   if(!pop3c)
     return CURLE_FAILED_INIT;
-  message = Curl_dyn_ptr(&pop3c->pp.recvbuf);
+  message = curlx_dyn_ptr(&pop3c->pp.recvbuf);
   len = pop3c->pp.nfinal;
   if(len > 2) {
     /* Find the start of the message */
@@ -723,11 +726,8 @@ static CURLcode pop3_perform_authentication(struct Curl_easy *data,
     if(pop3c->authtypes & pop3c->preftype & POP3_TYPE_CLEARTEXT)
       /* Perform clear text authentication */
       result = pop3_perform_user(data, conn);
-    else {
-      /* Other mechanisms not supported */
-      infof(data, "No known authentication mechanisms supported");
-      result = CURLE_LOGIN_DENIED;
-    }
+    else
+      result = Curl_sasl_is_blocked(&pop3c->sasl, data);
   }
 
   return result;
@@ -816,7 +816,7 @@ static CURLcode pop3_state_servergreet_resp(struct Curl_easy *data,
   if(!pop3c)
     return CURLE_FAILED_INIT;
 
-  line = Curl_dyn_ptr(&pop3c->pp.recvbuf);
+  line = curlx_dyn_ptr(&pop3c->pp.recvbuf);
   len = pop3c->pp.nfinal;
 
   if(pop3code != '+') {
@@ -871,7 +871,7 @@ static CURLcode pop3_state_capa_resp(struct Curl_easy *data, int pop3code,
   if(!pop3c)
     return CURLE_FAILED_INIT;
 
-  line = Curl_dyn_ptr(&pop3c->pp.recvbuf);
+  line = curlx_dyn_ptr(&pop3c->pp.recvbuf);
   len = pop3c->pp.nfinal;
 
   /* Do we have a untagged continuation response? */
@@ -1125,18 +1125,18 @@ static CURLcode pop3_state_command_resp(struct Curl_easy *data,
          the body */
 
       /* keep only the overflow */
-      Curl_dyn_tail(&pp->recvbuf, pp->overflow);
+      curlx_dyn_tail(&pp->recvbuf, pp->overflow);
       pp->nfinal = 0; /* done */
 
       if(!data->req.no_body) {
-        result = pop3_write(data, Curl_dyn_ptr(&pp->recvbuf),
-                            Curl_dyn_len(&pp->recvbuf), FALSE);
+        result = pop3_write(data, curlx_dyn_ptr(&pp->recvbuf),
+                            curlx_dyn_len(&pp->recvbuf), FALSE);
         if(result)
           return result;
       }
 
       /* reset the buffer */
-      Curl_dyn_reset(&pp->recvbuf);
+      curlx_dyn_reset(&pp->recvbuf);
       pp->overflow = 0;
     }
   }
@@ -1531,6 +1531,7 @@ static void pop3_easy_dtor(void *key, size_t klen, void *entry)
   struct POP3 *pop3 = entry;
   (void)key;
   (void)klen;
+  DEBUGASSERT(pop3);
   /* Cleanup our per-request based variables */
   Curl_safefree(pop3->id);
   Curl_safefree(pop3->custom);
@@ -1542,6 +1543,7 @@ static void pop3_conn_dtor(void *key, size_t klen, void *entry)
   struct pop3_conn *pop3c = entry;
   (void)key;
   (void)klen;
+  DEBUGASSERT(pop3c);
   Curl_pp_disconnect(&pop3c->pp);
   Curl_safefree(pop3c->apoptimestamp);
   free(pop3c);
@@ -1553,12 +1555,12 @@ static CURLcode pop3_setup_connection(struct Curl_easy *data,
   struct pop3_conn *pop3c;
   struct POP3 *pop3 = calloc(1, sizeof(*pop3));
   if(!pop3 ||
-    Curl_meta_set(data, CURL_META_POP3_EASY, pop3, pop3_easy_dtor))
+     Curl_meta_set(data, CURL_META_POP3_EASY, pop3, pop3_easy_dtor))
     return CURLE_OUT_OF_MEMORY;
 
   pop3c = calloc(1, sizeof(*pop3c));
   if(!pop3c ||
-    Curl_conn_meta_set(conn, CURL_META_POP3_CONN, pop3c, pop3_conn_dtor))
+     Curl_conn_meta_set(conn, CURL_META_POP3_CONN, pop3c, pop3_conn_dtor))
     return CURLE_OUT_OF_MEMORY;
 
   return CURLE_OK;

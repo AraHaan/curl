@@ -66,14 +66,14 @@
 #include "mime.h"
 #include "amigaos.h"
 #include "macos.h"
-#include "warnless.h"
+#include "curlx/warnless.h"
 #include "sigpipe.h"
 #include "vssh/ssh.h"
 #include "setopt.h"
 #include "http_digest.h"
 #include "system_win32.h"
 #include "http2.h"
-#include "dynbuf.h"
+#include "curlx/dynbuf.h"
 #include "altsvc.h"
 #include "hsts.h"
 
@@ -590,7 +590,7 @@ static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
     const unsigned int numfds = populate_fds(fds, ev);
 
     /* get the time stamp to use to figure out how long poll takes */
-    before = Curl_now();
+    before = curlx_now();
 
     if(numfds) {
       /* wait for activity or timeout */
@@ -645,7 +645,7 @@ static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
         /* If nothing updated the timeout, we decrease it by the spent time.
          * If it was updated, it has the new timeout time stored already.
          */
-        timediff_t timediff = Curl_timediff(Curl_now(), before);
+        timediff_t timediff = curlx_timediff(curlx_now(), before);
         if(timediff > 0) {
 #if DEBUG_EV_POLL
         fprintf(stderr, "poll timeout %ldms not updated, decrease by "
@@ -967,8 +967,8 @@ CURL *curl_easy_duphandle(CURL *d)
   outcurl->set.buffer_size = data->set.buffer_size;
 
   Curl_hash_init(&outcurl->meta_hash, 23,
-                 Curl_hash_str, Curl_str_key_compare, dupeasy_meta_freeentry);
-  Curl_dyn_init(&outcurl->state.headerb, CURL_MAX_HTTP_HEADER);
+                 Curl_hash_str, curlx_str_key_compare, dupeasy_meta_freeentry);
+  curlx_dyn_init(&outcurl->state.headerb, CURL_MAX_HTTP_HEADER);
   Curl_netrc_init(&outcurl->state.netrc);
 
   /* the connection pool is setup on demand */
@@ -987,7 +987,7 @@ CURL *curl_easy_duphandle(CURL *d)
   if(dupset(outcurl, data))
     goto fail;
 
-  outcurl->progress.flags    = data->progress.flags;
+  outcurl->progress.hide     = data->progress.hide;
   outcurl->progress.callback = data->progress.callback;
 
 #ifndef CURL_DISABLE_COOKIES
@@ -1062,7 +1062,7 @@ fail:
 #ifndef CURL_DISABLE_COOKIES
     free(outcurl->cookies);
 #endif
-    Curl_dyn_free(&outcurl->state.headerb);
+    curlx_dyn_free(&outcurl->state.headerb);
     Curl_altsvc_cleanup(&outcurl->asi);
     Curl_hsts_cleanup(&outcurl->hsts);
     Curl_freeset(outcurl);
@@ -1084,8 +1084,10 @@ void curl_easy_reset(CURL *d)
 
   /* clear all meta data */
   Curl_meta_reset(data);
-  /* clear any async resolve data */
+  /* clear any resolve data */
   Curl_async_shutdown(data);
+  Curl_resolv_unlink(data, &data->state.dns[0]);
+  Curl_resolv_unlink(data, &data->state.dns[1]);
   /* zero out UserDefined data: */
   Curl_freeset(data);
   memset(&data->set, 0, sizeof(struct UserDefined));
@@ -1097,7 +1099,7 @@ void curl_easy_reset(CURL *d)
   /* zero out PureInfo data: */
   Curl_initinfo(data);
 
-  data->progress.flags |= PGRS_HIDE;
+  data->progress.hide = TRUE;
   data->state.current_speed = -1; /* init to negative == impossible */
   data->state.retrycount = 0;     /* reset the retry counter */
 
@@ -1390,6 +1392,7 @@ CURLcode curl_easy_ssls_export(CURL *d,
 CURLcode Curl_meta_set(struct Curl_easy *data, const char *key,
                        void *meta_data, Curl_meta_dtor *meta_dtor)
 {
+  DEBUGASSERT(meta_data); /* never set to NULL */
   if(!Curl_hash_add2(&data->meta_hash, CURL_UNCONST(key), strlen(key) + 1,
                      meta_data, meta_dtor)) {
     meta_dtor(CURL_UNCONST(key), strlen(key) + 1, meta_data);

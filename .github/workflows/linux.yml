@@ -37,6 +37,7 @@ permissions: {}
 
 env:
   MAKEFLAGS: -j 5
+  CURL_CI: github
   CURL_CLANG_TIDYFLAGS: '-checks=-clang-analyzer-security.insecureAPI.strcpy,-clang-analyzer-optin.performance.Padding,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-analyzer-valist.Uninitialized'
   # unhandled
   bearssl-version: 0.6
@@ -51,7 +52,7 @@ env:
   # renovate: datasource=github-tags depName=nibanks/msh3 versioning=semver registryUrl=https://github.com
   msh3-version: 0.6.0
   # renovate: datasource=github-tags depName=awslabs/aws-lc versioning=semver registryUrl=https://github.com
-  awslc-version: 1.50.0
+  awslc-version: 1.52.0
   # handled in renovate.json
   openssl-version: 3.5.0
   # handled in renovate.json
@@ -142,7 +143,7 @@ jobs:
 
           - name: awslc
             install_packages: zlib1g-dev
-            install_steps: awslc
+            install_steps: awslc pytest
             configure: LDFLAGS="-Wl,-rpath,$HOME/awslc/lib" --with-openssl=$HOME/awslc --enable-ech
 
           - name: awslc
@@ -163,9 +164,15 @@ jobs:
             install_steps: pytest
             configure: CFLAGS=-std=gnu89 --with-openssl --enable-debug
 
-          - name: openssl -O3 valgrind
-            install_packages: zlib1g-dev valgrind
-            configure: CFLAGS=-O3 --with-openssl --enable-debug
+          - name: openssl arm
+            install_packages: zlib1g-dev
+            install_steps: pytest
+            configure: CFLAGS=-std=gnu89 --with-openssl --enable-debug
+            image: 'ubuntu-24.04-arm'
+
+          - name: openssl -O3 libssh valgrind
+            install_packages: zlib1g-dev libssh-dev valgrind
+            configure: CFLAGS=-O3 --with-openssl --enable-debug --with-libssh
 
           - name: openssl clang krb5
             install_packages: zlib1g-dev libkrb5-dev clang
@@ -298,6 +305,7 @@ jobs:
     steps:
       - name: 'install prereqs'
         if: matrix.build.container == null && !contains(matrix.build.name, 'i686')
+        # zizmor: ignore[template-injection]
         run: |
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get -o Dpkg::Use-Pty=0 update
@@ -661,6 +669,7 @@ jobs:
       - name: 'run tests'
         if: ${{ !contains(matrix.build.install_steps, 'skipall') && !contains(matrix.build.install_steps, 'skiprun') }}
         timeout-minutes: ${{ contains(matrix.build.install_packages, 'valgrind') && 30 || 15 }}
+        # zizmor: ignore[template-injection]
         run: |
           export TFLAGS='${{ matrix.build.tflags }}'
           if [ -z '${{ matrix.build.torture }}' ]; then
@@ -690,8 +699,8 @@ jobs:
       - name: 'run pytest'
         if: contains(matrix.build.install_steps, 'pytest')
         env:
-          CURL_CI: github
           PYTEST_ADDOPTS: '--color=yes'
+          PYTEST_XDIST_AUTO_NUM_WORKERS: 4
         run: |
           [ -x "$HOME/venv/bin/activate" ] && source $HOME/venv/bin/activate
           if [ -n '${{ matrix.build.generate }}' ]; then

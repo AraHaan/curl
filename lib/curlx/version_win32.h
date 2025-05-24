@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_BASE64_H
-#define HEADER_CURL_BASE64_H
+#ifndef HEADER_CURL_VERSION_WIN32_H
+#define HEADER_CURL_VERSION_WIN32_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Steve Holme, <steve_holme@hotmail.com>.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -24,18 +24,33 @@
  *
  ***************************************************************************/
 
-#ifndef BUILDING_LIBCURL
-/* this renames functions so that the tool code can use the same code
-   without getting symbol collisions */
-#define Curl_base64_encode(a,b,c,d) curlx_base64_encode(a,b,c,d)
-#define Curl_base64url_encode(a,b,c,d) curlx_base64url_encode(a,b,c,d)
-#define Curl_base64_decode(a,b,c) curlx_base64_decode(a,b,c)
-#endif
+#include "../curl_setup.h"
 
-CURLcode Curl_base64_encode(const char *inputbuff, size_t insize,
-                            char **outptr, size_t *outlen);
-CURLcode Curl_base64url_encode(const char *inputbuff, size_t insize,
-                               char **outptr, size_t *outlen);
-CURLcode Curl_base64_decode(const char *src,
-                            unsigned char **outptr, size_t *outlen);
-#endif /* HEADER_CURL_BASE64_H */
+#ifdef _WIN32
+
+/* Version condition */
+typedef enum {
+  VERSION_LESS_THAN,
+  VERSION_LESS_THAN_EQUAL,
+  VERSION_EQUAL,
+  VERSION_GREATER_THAN_EQUAL,
+  VERSION_GREATER_THAN
+} VersionCondition;
+
+/* Platform identifier */
+typedef enum {
+  PLATFORM_DONT_CARE,
+  PLATFORM_WINDOWS,
+  PLATFORM_WINNT
+} PlatformIdentifier;
+
+/* This is used to verify if we are running on a specific Windows version */
+bool curlx_verify_windows_version(const unsigned int majorVersion,
+                                  const unsigned int minorVersion,
+                                  const unsigned int buildVersion,
+                                  const PlatformIdentifier platform,
+                                  const VersionCondition condition);
+
+#endif /* _WIN32 */
+
+#endif /* HEADER_CURL_VERSION_WIN32_H */

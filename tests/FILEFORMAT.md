@@ -55,9 +55,11 @@ To insert a sequence of bytes from a hex encoded string, use this syntax:
 
     %hex[ %XX-encoded data to decode ]hex%
 
+Other bytes within the brackets that not percent encoded are inserted as-is.
+
 For example, to insert the binary octets 0, 1 and 255 into the test file:
 
-    %hex[ %00%01%FF ]hex%
+    %hex[%00%01%FF]hex%
 
 ## Repeat content
 
@@ -225,6 +227,9 @@ The `text-ci` make target automatically skips test with the `flaky` keyword.
 Tests that have strict timing dependencies have the `timing-dependent` keyword.
 These are intended to eventually be treated specially on CI builds which are
 often run on overloaded machines with unpredictable timing.
+
+Tests using non-7-bit-ASCII characters must provide them with `%hex[]` or
+similar.
 
 ## `<reply>`
 
@@ -433,6 +438,7 @@ Features testable here are:
 
 - `--libcurl`
 - `alt-svc`
+- `aws` - built with **aws-sigv4** support
 - `AppleIDN`
 - `asyn-rr` - c-ares is used for additional records only
 - `bearssl`

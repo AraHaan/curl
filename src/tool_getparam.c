@@ -23,10 +23,7 @@
  ***************************************************************************/
 #include "tool_setup.h"
 
-#include "strcase.h"
-
-#include "curlx.h"
-
+#include <curlx.h>
 #include "tool_binmode.h"
 #include "tool_cfgable.h"
 #include "tool_cb_prg.h"
@@ -39,11 +36,11 @@
 #include "tool_paramhlp.h"
 #include "tool_parsecfg.h"
 #include "tool_main.h"
-#include "dynbuf.h"
 #include "tool_stderr.h"
+#include "tool_help.h"
 #include "var.h"
 
-#include "memdebug.h" /* keep this as LAST include */
+#include <memdebug.h> /* keep this as LAST include */
 
 #define ALLOW_BLANK TRUE
 #define DENY_BLANK FALSE
@@ -663,12 +660,12 @@ static ParameterError data_urlencode(struct GlobalConfig *global,
   }
   else {
     char *enc = curl_easy_escape(NULL, postdata, (int)size);
-    curlx_safefree(postdata); /* no matter if it worked or not */
+    tool_safefree(postdata); /* no matter if it worked or not */
     if(enc) {
       char *n;
       replace_url_encoded_space_by_plus(enc);
       if(nlen > 0) { /* only append '=' if we have a name */
-        struct curlx_dynbuf dyn;
+        struct dynbuf dyn;
         curlx_dyn_init(&dyn, MAX_DATAURLENCODE);
         if(curlx_dyn_addn(&dyn, nextarg, nlen) ||
            curlx_dyn_addn(&dyn, "=", 1) ||
@@ -740,17 +737,17 @@ static CURLcode set_trace_config(struct GlobalConfig *global,
         break;
     }
 
-    if((len == 3) && strncasecompare(name, "all", 3)) {
+    if((len == 3) && curl_strnequal(name, "all", 3)) {
       global->traceids = toggle;
       global->tracetime = toggle;
       result = curl_global_trace(token);
       if(result)
         goto out;
     }
-    else if((len == 3) && strncasecompare(name, "ids", 3)) {
+    else if((len == 3) && curl_strnequal(name, "ids", 3)) {
       global->traceids = toggle;
     }
-    else if((len == 4) && strncasecompare(name, "time", 4)) {
+    else if((len == 4) && curl_strnequal(name, "time", 4)) {
       global->tracetime = toggle;
     }
     else {
@@ -853,7 +850,7 @@ static ParameterError url_query(const char *nextarg,
   size_t size = 0;
   ParameterError err = PARAM_OK;
   char *query;
-  struct curlx_dynbuf dyn;
+  struct dynbuf dyn;
   curlx_dyn_init(&dyn, MAX_QUERY_LEN);
 
   if(*nextarg == '+') {
@@ -957,7 +954,7 @@ static ParameterError set_data(cmdline_t cmd,
   if(!err && curlx_dyn_addn(&config->postdata, postdata, size))
     err = PARAM_NO_MEM;
 
-  curlx_safefree(postdata);
+  tool_safefree(postdata);
 
   config->postfields = curlx_dyn_ptr(&config->postdata);
   return err;
@@ -1048,7 +1045,7 @@ const struct LongShort *findlongopt(const char *opt)
 static ParameterError add_url(struct GlobalConfig *global,
                               struct OperationConfig *config,
                               const char *thisurl,
-                              int extraflags)
+                              bool remote_noglob)
 {
   ParameterError err = PARAM_OK;
   struct getout *url;
@@ -1059,7 +1056,7 @@ static ParameterError add_url(struct GlobalConfig *global,
   if(config->url_get) {
     /* there is a node here, if it already is filled-in continue to find
        an "empty" node */
-    while(config->url_get && (config->url_get->flags & GETOUT_URL))
+    while(config->url_get && config->url_get->urlset)
       config->url_get = config->url_get->next;
   }
 
@@ -1077,7 +1074,9 @@ static ParameterError add_url(struct GlobalConfig *global,
   else {
     /* fill in the URL */
     err = getstr(&url->url, thisurl, DENY_BLANK);
-    url->flags |= GETOUT_URL | extraflags;
+    url->urlset = TRUE;
+    if(remote_noglob)
+      url->useremote = url->noglob = TRUE;
     if(!err && (++config->num_urls > 1) &&
        (config->etag_save_file || config->etag_compare_file)) {
       errorf(global, "The etag options only work on a single URL");
@@ -1093,7 +1092,7 @@ static ParameterError parse_url(struct GlobalConfig *global,
 {
   if(nextarg && (nextarg[0] == '@')) {
     /* read URLs from a file, treat all as -O */
-    struct curlx_dynbuf line;
+    struct dynbuf line;
     ParameterError err = PARAM_OK;
     bool error = FALSE;
     bool fromstdin = !strcmp("-", &nextarg[1]);
@@ -1107,7 +1106,7 @@ static ParameterError parse_url(struct GlobalConfig *global,
       curlx_dyn_init(&line, 8092);
       while(my_get_line(f, &line, &error)) {
         const char *ptr = curlx_dyn_ptr(&line);
-        err = add_url(global, config, ptr, GETOUT_USEREMOTE | GETOUT_NOGLOB);
+        err = add_url(global, config, ptr, TRUE);
         if(err)
           break;
       }
@@ -1120,7 +1119,7 @@ static ParameterError parse_url(struct GlobalConfig *global,
     }
     return PARAM_READ_ERROR; /* file not found */
   }
-  return add_url(global, config, nextarg, 0);
+  return add_url(global, config, nextarg, FALSE);
 }
 
 
@@ -1199,11 +1198,11 @@ static ParameterError parse_ech(struct GlobalConfig *global,
   ParameterError err = PARAM_OK;
   if(!feature_ech)
     err = PARAM_LIBCURL_DOESNT_SUPPORT;
-  else if(strlen(nextarg) > 4 && strncasecompare("pn:", nextarg, 3)) {
+  else if(strlen(nextarg) > 4 && curl_strnequal("pn:", nextarg, 3)) {
     /* a public_name */
     err = getstr(&config->ech_public, nextarg, DENY_BLANK);
   }
-  else if(strlen(nextarg) > 5 && strncasecompare("ecl:", nextarg, 4)) {
+  else if(strlen(nextarg) > 5 && curl_strnequal("ecl:", nextarg, 4)) {
     /* an ECHConfigList */
     if('@' != *(nextarg + 4)) {
       err = getstr(&config->ech_config, nextarg, DENY_BLANK);
@@ -1301,7 +1300,7 @@ static ParameterError parse_output(struct OperationConfig *config,
   if(config->url_out) {
     /* there is a node here, if it already is filled-in continue to find
        an "empty" node */
-    while(config->url_out && (config->url_out->flags & GETOUT_OUTFILE))
+    while(config->url_out && config->url_out->outset)
       config->url_out = config->url_out->next;
   }
 
@@ -1320,8 +1319,8 @@ static ParameterError parse_output(struct OperationConfig *config,
 
   /* fill in the outfile */
   err = getstr(&url->outfile, nextarg, DENY_BLANK);
-  url->flags &= ~GETOUT_USEREMOTE; /* switch off */
-  url->flags |= GETOUT_OUTFILE;
+  url->useremote = FALSE; /* switch off */
+  url->outset = TRUE;
   return err;
 }
 
@@ -1331,7 +1330,7 @@ static ParameterError parse_remote_name(struct OperationConfig *config,
   ParameterError err = PARAM_OK;
   struct getout *url;
 
-  if(!toggle && !config->default_node_flags)
+  if(!toggle && !config->remote_name_all)
     return err; /* nothing to do */
 
   /* output file */
@@ -1340,7 +1339,7 @@ static ParameterError parse_remote_name(struct OperationConfig *config,
   if(config->url_out) {
     /* there is a node here, if it already is filled-in continue to find
        an "empty" node */
-    while(config->url_out && (config->url_out->flags & GETOUT_OUTFILE))
+    while(config->url_out && config->url_out->outset)
       config->url_out = config->url_out->next;
   }
 
@@ -1358,11 +1357,8 @@ static ParameterError parse_remote_name(struct OperationConfig *config,
     return PARAM_NO_MEM;
 
   url->outfile = NULL; /* leave it */
-  if(toggle)
-    url->flags |= GETOUT_USEREMOTE;  /* switch on */
-  else
-    url->flags &= ~GETOUT_USEREMOTE; /* switch off */
-  url->flags |= GETOUT_OUTFILE;
+  url->useremote = toggle;
+  url->outset = TRUE;
   return PARAM_OK;
 }
 
@@ -1447,7 +1443,7 @@ static ParameterError parse_upload_file(struct OperationConfig *config,
   if(config->url_ul) {
     /* there is a node here, if it already is filled-in continue to find
        an "empty" node */
-    while(config->url_ul && (config->url_ul->flags & GETOUT_UPLOAD))
+    while(config->url_ul && config->url_ul->uploadset)
       config->url_ul = config->url_ul->next;
   }
 
@@ -1463,9 +1459,9 @@ static ParameterError parse_upload_file(struct OperationConfig *config,
   if(!url)
     return PARAM_NO_MEM;
 
-  url->flags |= GETOUT_UPLOAD; /* mark -T used */
+  url->uploadset = TRUE; /* mark -T used */
   if(!*nextarg)
-    url->flags |= GETOUT_NOUPLOAD;
+    url->noupload = TRUE;
   else {
     /* "-" equals stdin, but keep the string around for now */
     err = getstr(&url->infile, nextarg, DENY_BLANK);
@@ -1557,7 +1553,7 @@ static ParameterError parse_writeout(struct GlobalConfig *global,
         return PARAM_READ_ERROR;
       }
     }
-    curlx_safefree(config->writeout);
+    tool_safefree(config->writeout);
     err = file2string(&config->writeout, file);
     if(file && (file != stdin))
       fclose(file);
@@ -1744,7 +1740,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       goto error;
     }
     else if(expand && nextarg) {
-      struct curlx_dynbuf nbuf;
+      struct dynbuf nbuf;
       bool replaced;
 
       if((ARGTYPE(a->desc) != ARG_STRG) &&
@@ -1835,6 +1831,9 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
     case C_RANDOM_FILE: /* --random-file */
     case C_EGD_FILE: /* --egd-file */
     case C_NTLM_WB: /* --ntlm-wb */
+    case C_NPN: /* --npn */
+    case C_SSLV2: /* --sslv2 */
+    case C_SSLV3: /* --sslv3 */
       warnf(global, "--%s is deprecated and has no function anymore",
             a->lname);
       break;
@@ -1866,7 +1865,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       err = getstr(&config->doh_url, nextarg, ALLOW_BLANK);
       if(!err && config->doh_url && !config->doh_url[0])
         /* if given a blank string, make it NULL again */
-        curlx_safefree(config->doh_url);
+        tool_safefree(config->doh_url);
       break;
     case C_CIPHERS: /* -- ciphers */
       err = getstr(&config->cipher_list, nextarg, DENY_BLANK);
@@ -1901,9 +1900,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
           warnf(global, "--trace overrides an earlier trace/verbose option");
         global->tracetype = TRACE_BIN;
       }
-      break;
-    case C_NPN: /* --npn */
-      warnf(global, "--npn is no longer supported");
       break;
     case C_TRACE_ASCII: /* --trace-ascii */
       err = getstr(&global->trace_dump, nextarg, DENY_BLANK);
@@ -2055,7 +2051,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
               a->lname);
       break;
     case C_FTP_PASV: /* --ftp-pasv */
-      curlx_safefree(config->ftpport);
+      tool_safefree(config->ftpport);
       break;
     case C_SOCKS5: /* --socks5 */
       /*  socks5 proxy to use, and resolves the name locally and passes on the
@@ -2391,12 +2387,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       break;
     case C_PROXY_TLS13_CIPHERS: /* --proxy-tls13-ciphers */
       err = getstr(&config->proxy_cipher13_list, nextarg, DENY_BLANK);
-      break;
-    case C_SSLV2: /* --sslv2 */
-      warnf(global, "Ignores instruction to use SSLv2");
-      break;
-    case C_SSLV3: /* --sslv3 */
-      warnf(global, "Ignores instruction to use SSLv3");
       break;
     case C_IPV4: /* --ipv4 */
       config->ip_version = CURL_IPRESOLVE_V4;
@@ -2754,13 +2744,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       break;
     case C_HELP: /* --help */
       if(toggle) {
-        if(*nextarg) {
-          global->help_category = strdup(nextarg);
-          if(!global->help_category) {
-            err = PARAM_NO_MEM;
-            break;
-          }
-        }
+        tool_help((nextarg && *nextarg) ? nextarg : NULL);
         err = PARAM_HELP_REQUESTED;
       }
       /* we now actually support --no-help too! */
@@ -2816,10 +2800,6 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       break;
     case C_MANUAL: /* --manual */
       if(toggle) { /* --no-manual shows no manual... */
-#ifndef USE_MANUAL
-        warnf(global,
-              "built-in manual was disabled at build-time");
-#endif
         err = PARAM_MANUAL_REQUESTED;
       }
       break;
@@ -2840,7 +2820,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       config->nobuffer = (bool)(longopt ? !toggle : TRUE);
       break;
     case C_REMOTE_NAME_ALL: /* --remote-name-all */
-      config->default_node_flags = toggle ? GETOUT_USEREMOTE : 0;
+      config->remote_name_all = toggle;
       break;
     case C_OUTPUT_DIR: /* --output-dir */
       err = getstr(&config->output_dir, nextarg, DENY_BLANK);
@@ -3067,8 +3047,10 @@ ParameterError parse_args(struct GlobalConfig *global, int argc,
                             &used, global, config);
     }
 
-    if(!result)
+    if(!result) {
       unicodefree(orig_opt);
+      orig_opt = NULL;
+    }
   }
 
   if(!result && config->content_disposition) {
