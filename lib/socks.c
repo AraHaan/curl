@@ -38,10 +38,10 @@
 #include "select.h"
 #include "cfilters.h"
 #include "connect.h"
-#include "timeval.h"
+#include "curlx/timeval.h"
 #include "socks.h"
 #include "multiif.h" /* for getsock macros */
-#include "inet_pton.h"
+#include "curlx/inet_pton.h"
 #include "url.h"
 
 /* The last 3 #include files should be in this order */
@@ -394,7 +394,7 @@ CONNECT_REQ_INIT:
     /*
      * This is currently not supporting "Identification Protocol (RFC1413)".
      */
-    socksreq[8] = 0; /* ensure empty userid is NUL-terminated */
+    socksreq[8] = 0; /* ensure empty userid is null-terminated */
     if(sx->proxy_user) {
       size_t plen = strlen(sx->proxy_user);
       if(plen > 255) {

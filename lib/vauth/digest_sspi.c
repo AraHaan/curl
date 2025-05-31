@@ -34,8 +34,8 @@
 #include "vauth.h"
 #include "digest.h"
 #include "../urldata.h"
-#include "../warnless.h"
-#include "../curl_multibyte.h"
+#include "../curlx/warnless.h"
+#include "../curlx/multibyte.h"
 #include "../sendf.h"
 #include "../strdup.h"
 #include "../strcase.h"
@@ -242,7 +242,7 @@ CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
 /*
  * Curl_override_sspi_http_realm()
  *
- * This is used to populate the domain in a SSPI identity structure
+ * This is used to populate the domain in an SSPI identity structure
  * The realm is extracted from the challenge message and used as the
  * domain if it is not already explicitly set.
  *

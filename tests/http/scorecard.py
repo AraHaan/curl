@@ -667,7 +667,7 @@ def parse_size(s):
 
 def main():
     parser = argparse.ArgumentParser(prog='scorecard', description="""
-        Run a range of tests to give a scorecard for a HTTP protocol
+        Run a range of tests to give a scorecard for an HTTP protocol
         'h3' or 'h2' implementation in curl.
         """)
     parser.add_argument("-v", "--verbose", action='count', default=1,
@@ -776,11 +776,11 @@ def main():
                 f'httpd not found: {env.httpd}'
             httpd.clear_logs()
             server_docs = httpd.docs_dir
-            assert httpd.start()
+            assert httpd.initial_start()
             if protocol == 'h3':
                 nghttpx = NghttpxQuic(env=env)
                 nghttpx.clear_logs()
-                assert nghttpx.start()
+                assert nghttpx.initial_start()
                 server_descr = f'nghttpx: https:{env.h3_port} [backend httpd: {env.httpd_version()}, https:{env.https_port}]'
                 server_port = env.h3_port
             else:
@@ -803,10 +803,10 @@ def main():
                 assert httpd.exists(), \
                     f'httpd not found: {env.httpd}'
                 httpd.clear_logs()
-                assert httpd.start()
+                assert httpd.initial_start()
             caddy = Caddy(env=env)
             caddy.clear_logs()
-            assert caddy.start()
+            assert caddy.initial_start()
             server_descr = f'Caddy: {env.caddy_version()}, http:{env.caddy_http_port} https:{env.caddy_https_port}{backend}'
             server_port = caddy.port
             server_docs = caddy.docs_dir

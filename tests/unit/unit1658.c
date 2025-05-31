@@ -65,62 +65,62 @@ static void rrresults(struct Curl_https_rrinfo *rr, CURLcode result)
 {
   char *p = rrbuffer;
   char *pend = rrbuffer + sizeof(rrbuffer);
-  msnprintf(rrbuffer, sizeof(rrbuffer), "r:%d|", (int)result);
+  curl_msnprintf(rrbuffer, sizeof(rrbuffer), "r:%d|", (int)result);
   p += strlen(rrbuffer);
 
   if(rr) {
     unsigned int i;
-    msnprintf(p, pend - p, "p:%d|", rr->priority);
+    curl_msnprintf(p, pend - p, "p:%d|", rr->priority);
     p += strlen(p);
 
-    msnprintf(p, pend - p, "%s|", rr->target ? rr->target : "-");
+    curl_msnprintf(p, pend - p, "%s|", rr->target ? rr->target : "-");
     p += strlen(p);
 
     for(i = 0; i < MAX_HTTPSRR_ALPNS && rr->alpns[i] != ALPN_none; i++) {
-      msnprintf(p, pend - p, "alpn:%x|", rr->alpns[i]);
+      curl_msnprintf(p, pend - p, "alpn:%x|", rr->alpns[i]);
       p += strlen(p);
     }
     if(rr->no_def_alpn) {
-      msnprintf(p, pend - p, "no-def-alpn|");
+      curl_msnprintf(p, pend - p, "no-def-alpn|");
       p += strlen(p);
     }
     if(rr->port >= 0) {
-      msnprintf(p, pend - p, "port:%d|", rr->port);
+      curl_msnprintf(p, pend - p, "port:%d|", rr->port);
       p += strlen(p);
     }
     if(rr->ipv4hints) {
       for(i = 0; i < rr->ipv4hints_len; i += 4) {
-        msnprintf(p, pend - p, "ipv4:%d.%d.%d.%d|",
-                  rr->ipv4hints[i],
-                  rr->ipv4hints[i + 1],
-                  rr->ipv4hints[i + 2],
-                  rr->ipv4hints[i + 3]);
+        curl_msnprintf(p, pend - p, "ipv4:%d.%d.%d.%d|",
+                       rr->ipv4hints[i],
+                       rr->ipv4hints[i + 1],
+                       rr->ipv4hints[i + 2],
+                       rr->ipv4hints[i + 3]);
         p += strlen(p);
       }
     }
     if(rr->echconfiglist) {
-      msnprintf(p, pend - p, "ech:");
+      curl_msnprintf(p, pend - p, "ech:");
       p += strlen(p);
       for(i = 0; i < rr->echconfiglist_len; i++) {
-        msnprintf(p, pend - p, "%02x", rr->echconfiglist[i]);
+        curl_msnprintf(p, pend - p, "%02x", rr->echconfiglist[i]);
         p += strlen(p);
       }
-      msnprintf(p, pend - p, "|");
+      curl_msnprintf(p, pend - p, "|");
       p += strlen(p);
     }
     if(rr->ipv6hints) {
       for(i = 0; i < rr->ipv6hints_len; i += 16) {
         int x;
-        msnprintf(p, pend - p, "ipv6:");
+        curl_msnprintf(p, pend - p, "ipv6:");
         p += strlen(p);
         for(x = 0; x < 16; x += 2) {
-          msnprintf(p, pend - p, "%s%02x%02x",
-                    x ? ":" : "",
-                    rr->ipv6hints[i + x],
-                    rr->ipv6hints[i + x + 1]);
+          curl_msnprintf(p, pend - p, "%s%02x%02x",
+                         x ? ":" : "",
+                         rr->ipv6hints[i + x],
+                         rr->ipv6hints[i + x + 1]);
           p += strlen(p);
         }
-        msnprintf(p, pend - p, "|");
+        curl_msnprintf(p, pend - p, "|");
         p += strlen(p);
       }
     }
@@ -250,7 +250,7 @@ UNITTEST_START
       "\x00\x03" /* data size */
       "\x02" /* ALPN length byte */
       "h2"
-      "\x00\x02" /* RR (2 == NO DEFALT ALPN) */
+      "\x00\x02" /* RR (2 == NO DEFAULT ALPN) */
       "\x00\x00", /* must be zero */
       24,
       "r:0|p:0|name.some.|alpn:10|no-def-alpn|"
@@ -263,7 +263,7 @@ UNITTEST_START
       "\x00\x03" /* data size */
       "\x02" /* ALPN length byte */
       "h2"
-      "\x00\x02" /* RR (2 == NO DEFALT ALPN) */
+      "\x00\x02" /* RR (2 == NO DEFAULT ALPN) */
       "\x00\x01" /* must be zero */
       "\xff",
       25,
@@ -277,7 +277,7 @@ UNITTEST_START
       "\x00\x03" /* data size */
       "\x02" /* ALPN length byte */
       "h2"
-      "\x00\x02" /* RR (2 == NO DEFALT ALPN) */
+      "\x00\x02" /* RR (2 == NO DEFAULT ALPN) */
       "\x00\x01", /* must be zero */
       /* missing last byte in the packet */
       24,
@@ -478,7 +478,7 @@ UNITTEST_START
       "h2"
       "\x02" /* ALPN length byte */
       "h1"
-      "\x00\x02" /* RR (2 == NO DEFALT ALPN) */
+      "\x00\x02" /* RR (2 == NO DEFAULT ALPN) */
       "\x00\x00" /* must be zero */
       "\x00\x03" /* RR (3 == PORT) */
       "\x00\x02" /* data size */
@@ -527,9 +527,9 @@ UNITTEST_START
 
       /* is the output the expected? */
       if(strcmp(rrbuffer, t[i].expect)) {
-        fprintf(stderr, "Test %s (%i) failed\n"
-                "Expected: %s\n"
-                "Received: %s\n", t[i].name, i, t[i].expect, rrbuffer);
+        curl_mfprintf(stderr, "Test %s (%i) failed\n"
+                      "Expected: %s\n"
+                      "Received: %s\n", t[i].name, i, t[i].expect, rrbuffer);
         unitfail++;
       }
 

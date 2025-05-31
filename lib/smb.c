@@ -596,7 +596,7 @@ static void smb_format_message(struct smb_conn *smbc,
                                struct smb_header *h,
                                unsigned char cmd, size_t len)
 {
-  unsigned int pid;
+  const unsigned int pid = 0xbad71d; /* made up */
 
   memset(h, 0, sizeof(*h));
   h->nbt_length = htons((unsigned short) (sizeof(*h) - sizeof(unsigned int) +
@@ -607,7 +607,6 @@ static void smb_format_message(struct smb_conn *smbc,
   h->flags2 = smb_swap16(SMB_FLAGS2_IS_LONG_NAME | SMB_FLAGS2_KNOWS_LONG_NAME);
   h->uid = smb_swap16(smbc->uid);
   h->tid = smb_swap16(req->tid);
-  pid = (unsigned int)curlx_getpid();
   h->pid_high = smb_swap16((unsigned short)(pid >> 16));
   h->pid = smb_swap16((unsigned short) pid);
 }
@@ -724,7 +723,7 @@ static CURLcode smb_send_setup(struct Curl_easy *data)
                  "%s%c"  /* OS */
                  "%s", /* client name */
                  smbc->user, 0, smbc->domain, 0, CURL_OS, 0, CLIENTNAME);
-  p++; /* count the final null termination */
+  p++; /* count the final null-termination */
   DEBUGASSERT(byte_count == (size_t)(p - msg.bytes));
   msg.byte_count = smb_swap16((unsigned short)byte_count);
 
@@ -755,7 +754,7 @@ static CURLcode smb_send_tree_connect(struct Curl_easy *data,
                  "%s%c"      /* share */
                  "%s",       /* service */
                  conn->host.name, smbc->share, 0, SERVICENAME);
-  p++; /* count the final null termination */
+  p++; /* count the final null-termination */
   DEBUGASSERT(byte_count == (size_t)(p - msg.bytes));
   msg.byte_count = smb_swap16((unsigned short)byte_count);
 

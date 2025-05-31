@@ -51,13 +51,13 @@
 
 #include <ctype.h>
 
-#include "curlx.h" /* from the private lib dir */
+#include <curlx.h> /* from the private lib dir */
 #include "getpart.h"
 #include "util.h"
 #include "server_sockaddr.h"
 
 /* include memdebug.h last */
-#include "memdebug.h"
+#include <memdebug.h>
 
 static int dnsd_wrotepidfile = 0;
 static int dnsd_wroteportfile = 0;
@@ -121,7 +121,7 @@ static int store_incoming(const unsigned char *data, size_t size,
   *qtype = 0;
   *idp = 0;
 
-  msnprintf(dumpfile, sizeof(dumpfile), "%s/dnsd.input", logdir);
+  snprintf(dumpfile, sizeof(dumpfile), "%s/dnsd.input", logdir);
 
   /* Open request dump file. */
   server = fopen(dumpfile, "ab");
@@ -475,7 +475,7 @@ int main(int argc, char **argv)
     }
   }
 
-  msnprintf(loglockfile, sizeof(loglockfile), "%s/%s/dnsd-%s.lock",
+  snprintf(loglockfile, sizeof(loglockfile), "%s/%s/dnsd-%s.lock",
             logdir, SERVERLOGS_LOCKDIR, ipv_inuse);
 
 #ifdef _WIN32
@@ -668,7 +668,7 @@ dnsd_cleanup:
 
   if(got_exit_signal) {
     logmsg("========> %s dnsd (port: %d pid: %ld) exits with signal (%d)",
-           ipv_inuse, (int)port, (long)curlx_getpid(), exit_signal);
+           ipv_inuse, (int)port, (long)our_getpid(), exit_signal);
     /*
      * To properly set the return status of the process we
      * must raise the same signal SIGINT or SIGTERM that we

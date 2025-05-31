@@ -44,6 +44,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include        \
               -I$(top_builddir)/lib          \
               -I$(top_builddir)/src          \
               -I$(top_srcdir)/lib            \
+              -I$(top_srcdir)/lib/curlx      \
               -I$(top_srcdir)/src
 
 bin_PROGRAMS = curl
@@ -74,7 +75,7 @@ CLEANFILES =
 
 if USE_UNITY
 if USE_CPPFLAG_CURL_STATICLIB
-curl_CURLX = $(CURLTOOL_LIBCURL_CFILES)
+curl_CURLX =
 else
 curl_CURLX = $(CURLX_CFILES)
 endif
@@ -110,8 +111,8 @@ libcurltool_la_CPPFLAGS = $(AM_CPPFLAGS) -DCURL_STATICLIB -DUNITTESTS
 libcurltool_la_CFLAGS =
 libcurltool_la_LDFLAGS = -static $(LINKFLAGS)
 if USE_UNITY
-libcurltool_unity.c: $(top_srcdir)/scripts/mk-unity.pl $(CURL_CFILES) $(CURLTOOL_LIBCURL_CFILES)
-	@PERL@ $(top_srcdir)/scripts/mk-unity.pl $(srcdir) $(CURL_CFILES) $(CURLTOOL_LIBCURL_CFILES) > libcurltool_unity.c
+libcurltool_unity.c: $(top_srcdir)/scripts/mk-unity.pl $(CURL_CFILES) $(curl_CURLX)
+	@PERL@ $(top_srcdir)/scripts/mk-unity.pl $(srcdir) $(CURL_CFILES) $(curl_CURLX) > libcurltool_unity.c
 
 nodist_libcurltool_la_SOURCES = libcurltool_unity.c
 libcurltool_la_SOURCES =
@@ -124,7 +125,7 @@ endif
 # Use absolute directory to disable VPATH
 ASCIIPAGE=$(top_builddir)/docs/cmdline-opts/curl.txt
 MKHELP=$(top_srcdir)/src/mkhelp.pl
-HUGE=$(builddir)/tool_hugehelp.c
+HUGE=tool_hugehelp.c
 
 HUGECMD = $(HUGEIT_$(V))
 HUGEIT_0 = @echo "  HUGE    " $@;
@@ -144,22 +145,29 @@ if HAVE_LIBZ
 # This generates the tool_hugehelp.c file in both uncompressed and
 # compressed formats.
 $(HUGE): $(ASCIIPAGE) $(MKHELP)
-	$(HUGECMD) (echo '#include "tool_setup.h"' > $(HUGE);   \
-	echo '#ifndef HAVE_LIBZ' >> $(HUGE);                    \
-	$(PERL) $(MKHELP) < $(ASCIIPAGE) >> $(HUGE);     \
-	echo '#else' >> $(HUGE);                                \
-	$(PERL) $(MKHELP) -c < $(ASCIIPAGE) >> $(HUGE);  \
+	$(HUGECMD)(                                                \
+	echo '/* !checksrc! disable COPYRIGHT all */' > $(HUGE);   \
+	echo '/* !checksrc! disable INCLUDEDUP all */' >> $(HUGE); \
+	echo '/* !checksrc! disable LONGLINE all */' >> $(HUGE);   \
+	echo '#include "tool_setup.h"' >> $(HUGE);                 \
+	echo '#ifndef HAVE_LIBZ' >> $(HUGE);                       \
+	$(PERL) $(MKHELP) < $(ASCIIPAGE) >> $(HUGE);               \
+	echo '#else' >> $(HUGE);                                   \
+	$(PERL) $(MKHELP) -c < $(ASCIIPAGE) >> $(HUGE);            \
 	echo '#endif /* HAVE_LIBZ */' >> $(HUGE) )
 else # HAVE_LIBZ
 # This generates the tool_hugehelp.c file uncompressed only
 $(HUGE): $(ASCIIPAGE) $(MKHELP)
-	$(HUGECMD)(echo '#include "tool_setup.h"' > $(HUGE);    \
+	$(HUGECMD)(                                                \
+	echo '/* !checksrc! disable COPYRIGHT all */' > $(HUGE);   \
+	echo '#include "tool_setup.h"' >> $(HUGE);                 \
 	$(PERL) $(MKHELP) < $(ASCIIPAGE) >> $(HUGE) )
 endif
 
 else # USE_MANUAL
 # built-in manual has been disabled, make a blank file
 $(HUGE):
+	echo '/* !checksrc! disable COPYRIGHT all */' > $(HUGE);   \
 	echo '#include "tool_hugehelp.h"' >> $(HUGE)
 endif
 
@@ -167,7 +175,7 @@ curl_cfiles_gen += $(HUGE)
 curl_hfiles_gen += tool_hugehelp.h
 CLEANFILES += $(HUGE)
 
-CA_EMBED_CSOURCE = $(builddir)/tool_ca_embed.c
+CA_EMBED_CSOURCE = tool_ca_embed.c
 curl_cfiles_gen += $(CA_EMBED_CSOURCE)
 CLEANFILES += $(CA_EMBED_CSOURCE)
 if CURL_CA_EMBED_SET
@@ -177,7 +185,8 @@ $(CA_EMBED_CSOURCE): $(MK_FILE_EMBED) $(CURL_CA_EMBED)
 	$(PERL) $(MK_FILE_EMBED) --var curl_ca_embed < $(CURL_CA_EMBED) > $(CA_EMBED_CSOURCE)
 else
 $(CA_EMBED_CSOURCE):
-	echo 'extern const void *curl_ca_embed; const void *curl_ca_embed;' > $(CA_EMBED_CSOURCE)
+	echo '/* !checksrc! disable COPYRIGHT all */' > $(CA_EMBED_CSOURCE)
+	echo 'extern const void *curl_ca_embed; const void *curl_ca_embed;' >> $(CA_EMBED_CSOURCE)
 endif
 
 CHECKSRC = $(CS_$(V))
@@ -189,9 +198,11 @@ CS_ = $(CS_0)
 checksrc:
 	$(CHECKSRC)(@PERL@ $(top_srcdir)/scripts/checksrc.pl -D$(srcdir) $(CURL_CFILES) $(CURL_HFILES))
 
+if NOT_CURL_CI
 if DEBUGBUILD
 # for debug builds, we scan the sources on all regular make invokes
 all-local: checksrc
+endif
 endif
 
 # disable the tests that are mostly causing false positives

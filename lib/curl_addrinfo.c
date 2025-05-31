@@ -51,8 +51,8 @@
 
 #include "curl_addrinfo.h"
 #include "fake_addrinfo.h"
-#include "inet_pton.h"
-#include "warnless.h"
+#include "curlx/inet_pton.h"
+#include "curlx/warnless.h"
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
 #include "curl_memory.h"
@@ -218,7 +218,7 @@ Curl_getaddrinfo_ex(const char *nodename,
  *
  * This function returns a pointer to the first element of a newly allocated
  * Curl_addrinfo struct linked list filled with the data of a given hostent.
- * Curl_addrinfo is meant to work like the addrinfo struct does for a IPv6
+ * Curl_addrinfo is meant to work like the addrinfo struct does for an IPv6
  * stack, but usable also for IPv4, all hosts and environments.
  *
  * The memory allocated by this function *MUST* be free'd later on calling
@@ -468,7 +468,7 @@ struct Curl_addrinfo *Curl_unix2addr(const char *path, bool *longpath,
   sa_un = (void *) ai->ai_addr;
   sa_un->sun_family = AF_UNIX;
 
-  /* sun_path must be able to store the NUL-terminated path */
+  /* sun_path must be able to store the null-terminated path */
   path_len = strlen(path) + 1;
   if(path_len > sizeof(sa_un->sun_path)) {
     free(ai);

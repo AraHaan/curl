@@ -48,14 +48,7 @@ my @space_at_eol = (
 );
 
 my @non_ascii_allowed = (
-    '\xC3\xA1',          # UTF-8 for https://codepoints.net/U+00E1 LATIN SMALL LETTER A WITH ACUTE
-    '\xC3\xA5',          # UTF-8 for https://codepoints.net/U+00E5 LATIN SMALL LETTER A WITH RING ABOVE
-    '\xC3\xA4',          # UTF-8 for https://codepoints.net/U+00E4 LATIN SMALL LETTER A WITH DIAERESIS
-    '\xC3\xB6',          # UTF-8 for https://codepoints.net/U+00F6 LATIN SMALL LETTER O WITH DIAERESIS
-    '\xC2\xB1',          # UTF-8 for https://codepoints.net/U+00B1 PLUS-MINUS SIGN
-    '\xC2\xA7',          # UTF-8 for https://codepoints.net/U+00A7 SECTION SIGN
-    '\xC3\x9F',          # UTF-8 for https://codepoints.net/U+00DF LATIN SMALL LETTER SHARP S
-    '\xF0\x9F\x99\x8F',  # UTF-8 for https://codepoints.net/U+1f64f PERSON WITH FOLDED HANDS
+    '\xC3\xB6',  # UTF-8 for https://codepoints.net/U+00F6 LATIN SMALL LETTER O WITH DIAERESIS
 );
 
 my $non_ascii_allowed = join(', ', @non_ascii_allowed);
@@ -65,11 +58,8 @@ my @non_ascii = (
     ".mailmap",
     "RELEASE-NOTES",
     "docs/BINDINGS.md",
-    "docs/CIPHERS.md",
     "docs/THANKS",
     "docs/THANKS-filter",
-    "tests/libtest/lib1560.c",
-    "^tests/data/test",
 );
 
 sub fn_match {
@@ -159,11 +149,19 @@ while(my $filename = <$git_ls_files>) {
         push @err, "content: has binary contents";
     }
 
-    $content =~ s/[$non_ascii_allowed]//g;
+    if($filename !~ /tests\/data/) {
+        # the tests have no allowed UTF bytes
+        $content =~ s/[$non_ascii_allowed]//g;
+    }
 
     if(!fn_match($filename, @non_ascii) &&
-       $content =~ /([\x80-\xff]+)/) {
-        push @err, "content: has non-ASCII: '$1'";
+       ($content =~ /([\x80-\xff]+)/)) {
+        my $non = $1;
+        my $hex;
+        for my $e (split(//, $non)) {
+            $hex .= sprintf("%s%02x", $hex ? " ": "", ord($e));
+        }
+        push @err, "content: has non-ASCII: '$non' ($hex)";
     }
 
     if(@err) {

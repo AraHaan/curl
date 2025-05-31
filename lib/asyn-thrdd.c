@@ -318,19 +318,23 @@ static void async_thrdd_destroy(struct Curl_easy *data)
 
     /* Release our reference to the data shared with the thread. */
     Curl_mutex_acquire(&addr->mutx);
-    thrdd->addr = NULL;
     --addr->ref_count;
     CURL_TRC_DNS(data, "resolve, destroy async data, shared ref=%d",
                  addr->ref_count);
     done = !addr->ref_count;
-    Curl_mutex_release(&addr->mutx);
-
+    /* we give up our reference to `addr`, so NULL our pointer.
+     * coverity analyses this as being a potential unsynched write,
+     * assuming two calls to this function could be invoked concurrently.
+     * Which they never are, as the transfer's side runs single-threaded. */
+    thrdd->addr = NULL;
     if(!done) {
-      /* thread is still running. Detach the thread, it will
+      /* thread is still running. Detach the thread while mutexed, it will
        * trigger the cleanup when it releases its reference. */
       Curl_thread_destroy(&addr->thread_hnd);
     }
-    else {
+    Curl_mutex_release(&addr->mutx);
+
+    if(done) {
       /* thread has released its reference, join it and
        * release the memory we shared with it. */
       if(addr->thread_hnd != curl_thread_t_null)
@@ -431,7 +435,7 @@ static bool async_thrdd_init(struct Curl_easy *data,
   Curl_mutex_acquire(&addr_ctx->mutx);
   DEBUGASSERT(addr_ctx->ref_count == 1);
   /* passing addr_ctx to the thread adds a reference */
-  addr_ctx->start = Curl_now();
+  addr_ctx->start = curlx_now();
   ++addr_ctx->ref_count;
 #ifdef HAVE_GETADDRINFO
   addr_ctx->thread_hnd = Curl_thread_create(getaddrinfo_thread, addr_ctx);
@@ -616,7 +620,7 @@ CURLcode Curl_async_is_resolved(struct Curl_easy *data,
   else {
     /* poll for name lookup done with exponential backoff up to 250ms */
     /* should be fine even if this converts to 32-bit */
-    timediff_t elapsed = Curl_timediff(Curl_now(),
+    timediff_t elapsed = curlx_timediff(curlx_now(),
                                        data->progress.t_startsingle);
     if(elapsed < 0)
       elapsed = 0;
@@ -669,7 +673,7 @@ int Curl_async_getsock(struct Curl_easy *data, curl_socket_t *socks)
 #endif
   {
     timediff_t milli;
-    timediff_t ms = Curl_timediff(Curl_now(), thrdd->addr->start);
+    timediff_t ms = curlx_timediff(curlx_now(), thrdd->addr->start);
     if(ms < 3)
       milli = 0;
     else if(ms <= 50)

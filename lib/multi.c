@@ -38,10 +38,10 @@
 #include "multiif.h"
 #include "multi_ev.h"
 #include "sendf.h"
-#include "timeval.h"
+#include "curlx/timeval.h"
 #include "http.h"
 #include "select.h"
-#include "warnless.h"
+#include "curlx/warnless.h"
 #include "speedcheck.h"
 #include "conncache.h"
 #include "multihandle.h"
@@ -237,7 +237,7 @@ struct Curl_multi *Curl_multi_handle(unsigned int xfer_table_size,
   Curl_uint_bset_init(&multi->pending);
   Curl_uint_bset_init(&multi->msgsent);
   Curl_hash_init(&multi->proto_hash, 23,
-                 Curl_hash_str, Curl_str_key_compare, ph_freeentry);
+                 Curl_hash_str, curlx_str_key_compare, ph_freeentry);
   Curl_llist_init(&multi->msglist, NULL);
 
   multi->multiplexing = TRUE;
@@ -347,7 +347,8 @@ static CURLMcode multi_xfers_add(struct Curl_multi *multi,
   if(unused <= min_unused) {
      /* make it a 64 multiple, since our bitsets frow by that and
       * small (easy_multi) grows to at least 64 on first resize. */
-    unsigned int newsize = ((capacity + min_unused) + 63) / 64;
+    unsigned int newsize = (((capacity + min_unused) + 63) / 64) * 64;
+    DEBUGASSERT(newsize > capacity);
     /* Grow the bitsets first. Should one fail, we do not need
      * to downsize the already resized ones. The sets continue
      * to work properly when larger than the table, but not
@@ -521,8 +522,8 @@ static void multi_done_locked(struct connectdata *conn,
   data->state.done = TRUE; /* called just now! */
   data->state.recent_conn_id = conn->connection_id;
 
-  if(conn->dns_entry)
-    Curl_resolv_unlink(data, &conn->dns_entry); /* done with this */
+  Curl_resolv_unlink(data, &data->state.dns[0]); /* done with this */
+  Curl_resolv_unlink(data, &data->state.dns[1]);
   Curl_dnscache_prune(data);
 
   /* if data->set.reuse_forbid is TRUE, it means the libcurl client has
@@ -832,6 +833,8 @@ void Curl_detach_connection(struct Curl_easy *data)
   struct connectdata *conn = data->conn;
   if(conn) {
     Curl_uint_spbset_remove(&conn->xfers_attached, data->mid);
+    if(Curl_uint_spbset_empty(&conn->xfers_attached))
+      conn->attached_multi = NULL;
   }
   data->conn = NULL;
 }
@@ -849,6 +852,11 @@ void Curl_attach_connection(struct Curl_easy *data,
   DEBUGASSERT(conn);
   data->conn = conn;
   Curl_uint_spbset_add(&conn->xfers_attached, data->mid);
+  /* all attached transfers must be from the same multi */
+  if(!conn->attached_multi)
+    conn->attached_multi = data->multi;
+  DEBUGASSERT(conn->attached_multi == data->multi);
+
   if(conn->handler && conn->handler->attach)
     conn->handler->attach(data, conn);
 }
@@ -1633,22 +1641,22 @@ static bool multi_handle_timeout(struct Curl_easy *data,
       since = data->progress.t_startop;
     if(data->mstate == MSTATE_RESOLVING)
       failf(data, "Resolving timed out after %" FMT_TIMEDIFF_T
-            " milliseconds", Curl_timediff(*now, since));
+            " milliseconds", curlx_timediff(*now, since));
     else if(data->mstate == MSTATE_CONNECTING)
       failf(data, "Connection timed out after %" FMT_TIMEDIFF_T
-            " milliseconds", Curl_timediff(*now, since));
+            " milliseconds", curlx_timediff(*now, since));
     else {
       struct SingleRequest *k = &data->req;
       if(k->size != -1) {
         failf(data, "Operation timed out after %" FMT_TIMEDIFF_T
               " milliseconds with %" FMT_OFF_T " out of %"
               FMT_OFF_T " bytes received",
-              Curl_timediff(*now, since), k->bytecount, k->size);
+              curlx_timediff(*now, since), k->bytecount, k->size);
       }
       else {
         failf(data, "Operation timed out after %" FMT_TIMEDIFF_T
               " milliseconds with %" FMT_OFF_T " bytes received",
-              Curl_timediff(*now, since), k->bytecount);
+              curlx_timediff(*now, since), k->bytecount);
       }
     }
     *result = CURLE_OPERATION_TIMEDOUT;
@@ -2165,7 +2173,7 @@ static CURLMcode state_resolving(struct Curl_multi *multi,
     bool connected;
     /* Perform the next step in the connection phase, and then move on to the
        WAITCONNECT state */
-    result = Curl_once_resolved(data, &connected);
+    result = Curl_once_resolved(data, dns, &connected);
 
     if(result)
       /* if Curl_once_resolved() returns failure, the connection struct is
@@ -2650,7 +2658,7 @@ CURLMcode curl_multi_perform(CURLM *m, int *running_handles)
 {
   CURLMcode returncode = CURLM_OK;
   struct Curl_tree *t = NULL;
-  struct curltime now = Curl_now();
+  struct curltime now = curlx_now();
   struct Curl_multi *multi = m;
   unsigned int mid;
   SIGPIPE_VARIABLE(pipe_st);
@@ -2897,7 +2905,7 @@ static CURLMcode add_next_timeout(struct curltime now,
   for(e = Curl_llist_head(list); e;) {
     struct Curl_llist_node *n = Curl_node_next(e);
     struct time_node *node = Curl_node_elem(e);
-    timediff_t diff = Curl_timediff_us(node->time, now);
+    timediff_t diff = curlx_timediff_us(node->time, now);
     if(diff <= 0)
       /* remove outdated entry */
       Curl_node_remove(e);
@@ -2990,7 +2998,7 @@ static CURLMcode multi_socket(struct Curl_multi *multi,
   (void)ev_bitmask;
   memset(&mrc, 0, sizeof(mrc));
   mrc.multi = multi;
-  mrc.now = Curl_now();
+  mrc.now = curlx_now();
   sigpipe_init(&mrc.pipe_st);
 
   if(checkall) {
@@ -3028,7 +3036,7 @@ static CURLMcode multi_socket(struct Curl_multi *multi,
      * to set a 0 timeout and call us again, we run them here.
      * Do that only once or it might be unfair to transfers on other
      * sockets. */
-    mrc.now = Curl_now();
+    mrc.now = curlx_now();
     result = multi_run_expired(&mrc);
   }
 
@@ -3170,20 +3178,20 @@ static CURLMcode multi_timeout(struct Curl_multi *multi,
 
   if(multi->timetree) {
     /* we have a tree of expire times */
-    struct curltime now = Curl_now();
+    struct curltime now = curlx_now();
 
     /* splay the lowest to the bottom */
     multi->timetree = Curl_splay(tv_zero, multi->timetree);
-    /* this will not return NULL from a non-emtpy tree, but some compilers
+    /* this will not return NULL from a non-empty tree, but some compilers
      * are not convinced of that. Analyzers are hard. */
     *expire_time = multi->timetree ? multi->timetree->key : tv_zero;
 
     /* 'multi->timetree' will be non-NULL here but the compilers sometimes
        yell at us if we assume so */
     if(multi->timetree &&
-       Curl_timediff_us(multi->timetree->key, now) > 0) {
+       curlx_timediff_us(multi->timetree->key, now) > 0) {
       /* some time left before expiration */
-      timediff_t diff = Curl_timediff_ceil(multi->timetree->key, now);
+      timediff_t diff = curlx_timediff_ceil(multi->timetree->key, now);
       /* this should be safe even on 32-bit archs, as we do not use that
          overly long timeouts */
       *timeout_ms = (long)diff;
@@ -3256,7 +3264,7 @@ CURLMcode Curl_update_timer(struct Curl_multi *multi)
 #endif
     set_value = TRUE;
   }
-  else if(Curl_timediff_us(multi->last_expire_ts, expire_ts)) {
+  else if(curlx_timediff_us(multi->last_expire_ts, expire_ts)) {
     /* We had a timeout before and have one now, the absolute timestamp
      * differs. The relative timeout_ms may be the same, but the starting
      * point differs. Let the application restart its timer. */
@@ -3340,7 +3348,7 @@ multi_addtimeout(struct Curl_easy *data,
     /* find the correct spot in the list */
     for(e = Curl_llist_head(timeoutlist); e; e = Curl_node_next(e)) {
       struct time_node *check = Curl_node_elem(e);
-      timediff_t diff = Curl_timediff(check->time, node->time);
+      timediff_t diff = curlx_timediff(check->time, node->time);
       if(diff > 0)
         break;
       prev = e;
@@ -3389,7 +3397,7 @@ void Curl_expire_ex(struct Curl_easy *data,
     /* This means that the struct is added as a node in the splay tree.
        Compare if the new time is earlier, and only remove-old/add-new if it
        is. */
-    timediff_t diff = Curl_timediff(set, *curr_expire);
+    timediff_t diff = curlx_timediff(set, *curr_expire);
     int rc;
 
     if(diff > 0) {
@@ -3427,7 +3435,7 @@ void Curl_expire_ex(struct Curl_easy *data,
  */
 void Curl_expire(struct Curl_easy *data, timediff_t milli, expire_id id)
 {
-  struct curltime now = Curl_now();
+  struct curltime now = curlx_now();
   Curl_expire_ex(data, &now, milli, id);
 }
 
