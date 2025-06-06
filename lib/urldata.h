@@ -145,7 +145,7 @@ typedef unsigned int curl_prot_t;
 #include <netinet/in6.h>
 #endif
 
-#include "timeval.h"
+#include "curlx/timeval.h"
 
 #include <curl/curl.h>
 
@@ -153,7 +153,7 @@ typedef unsigned int curl_prot_t;
 #include "hostip.h"
 #include "hash.h"
 #include "splay.h"
-#include "dynbuf.h"
+#include "curlx/dynbuf.h"
 #include "dynhds.h"
 #include "request.h"
 #include "netrc.h"
@@ -275,8 +275,8 @@ struct ssl_primary_config {
   char *password; /* TLS password (for, e.g., SRP) */
 #endif
   char *curves;          /* list of curves to use */
-  unsigned char ssl_options;  /* the CURLOPT_SSL_OPTIONS bitmask */
   unsigned int version_max; /* max supported version the client wants to use */
+  unsigned char ssl_options;  /* the CURLOPT_SSL_OPTIONS bitmask */
   unsigned char version;    /* what version the client wants to use */
   BIT(verifypeer);       /* set TRUE if this is desired */
   BIT(verifyhost);       /* set TRUE if CN/SAN must match hostname */
@@ -753,12 +753,6 @@ struct connectdata {
    * the connection is cleaned up (see Curl_hash_add2()).*/
   struct Curl_hash meta_hash;
 
-  /* 'dns_entry' is the particular host we use. This points to an entry in the
-     DNS cache and it will not get pruned while locked. It gets unlocked in
-     multi_done(). This entry will be NULL if the connection is reused as then
-     there is no name resolve done. */
-  struct Curl_dns_entry *dns_entry;
-
   /* 'remote_addr' is the particular IP we connected to. it is owned, set
    * and NULLed by the connected socket filter (if there is one). */
   const struct Curl_sockaddr_ex *remote_addr;
@@ -834,6 +828,13 @@ struct connectdata {
 #endif                        /* however, some of them are ftp specific. */
 
   struct uint_spbset xfers_attached; /* mids of attached transfers */
+  /* A connection cache from a SHARE might be used in several multi handles.
+   * We MUST not reuse connections that are running in another multi,
+   * for concurrency reasons. That multi might run in another thread.
+   * `attached_multi` is set by the first transfer attached and cleared
+   * when the last one is detached.
+   * NEVER call anything on this multi, just check for equality. */
+  struct Curl_multi *attached_multi;
 
   /*************** Request - specific items ************/
 #if defined(USE_WINDOWS_SSPI) && defined(SECPKG_ATTR_ENDPOINT_BINDINGS)
@@ -861,25 +862,6 @@ struct connectdata {
   struct negotiatedata negotiate; /* state data for host Negotiate auth */
   struct negotiatedata proxyneg; /* state data for proxy Negotiate auth */
 #endif
-
-  union {
-#ifdef USE_SSH
-    struct ssh_conn sshc;
-#endif
-#ifndef CURL_DISABLE_IMAP
-    struct imap_conn imapc;
-#endif
-#ifndef CURL_DISABLE_SMTP
-    struct smtp_conn smtpc;
-#endif
-#ifndef CURL_DISABLE_RTSP
-    struct rtsp_conn rtspc;
-#endif
-#ifdef USE_LIBRTMP
-    void *rtmp;
-#endif
-    unsigned int unused:1; /* avoids empty union */
-  } proto;
 
 #ifdef USE_UNIX_SOCKETS
   char *unix_domain_socket;
@@ -996,9 +978,6 @@ struct Progress {
   curl_off_t current_speed; /* uses the currently fastest transfer */
   curl_off_t earlydata_sent;
 
-  int width; /* screen width at download start */
-  int flags; /* see progress.h */
-
   timediff_t timespent;
 
   timediff_t t_postqueue;
@@ -1020,7 +999,11 @@ struct Progress {
 
   curl_off_t speeder[ CURR_TIME ];
   struct curltime speeder_time[ CURR_TIME ];
-  int speeder_c;
+  unsigned char speeder_c;
+  BIT(hide);
+  BIT(ul_size_known);
+  BIT(dl_size_known);
+  BIT(headers_out); /* when the headers have been written */
   BIT(callback);  /* set when progress callback is used */
   BIT(is_t_startransfer_set);
 };
@@ -1169,6 +1152,8 @@ struct UrlState {
 #endif
   struct auth authhost;  /* auth details for host */
   struct auth authproxy; /* auth details for proxy */
+
+  struct Curl_dns_entry *dns[2]; /* DNS to connect FIRST/SECONDARY */
 #ifdef USE_CURL_ASYNC
   struct Curl_async async;  /* asynchronous name resolver data */
 #endif
@@ -1733,7 +1718,6 @@ struct UserDefined {
                             us */
   BIT(wildcard_enabled); /* enable wildcard matching */
 #endif
-  BIT(hide_progress);    /* do not use the progress meter */
   BIT(http_fail_on_error);  /* fail on HTTP error codes >= 400 */
   BIT(http_keep_sending_on_error); /* for HTTP status codes >= 300 */
   BIT(http_transfer_encoding); /* request compressed HTTP transfer-encoding */

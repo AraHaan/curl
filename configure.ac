@@ -39,6 +39,7 @@ terms of the curl license; see COPYING for more details])
 
 AC_CONFIG_SRCDIR([lib/urldata.h])
 AC_CONFIG_HEADERS(lib/curl_config.h)
+AH_TOP([/* !checksrc! disable COPYRIGHT all */])
 AC_CONFIG_MACRO_DIR([m4])
 AM_MAINTAINER_MODE
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
@@ -299,27 +300,39 @@ TEST_NGHTTPX=nghttpx
 AC_ARG_WITH(test-nghttpx,dnl
 AS_HELP_STRING([--with-test-nghttpx=PATH],[where to find nghttpx for testing]),
   TEST_NGHTTPX=$withval
-  if test X"$OPT_TEST_NGHTTPX" = "Xno"; then
+  if test X"$TEST_NGHTTPX" = "Xno"; then
     TEST_NGHTTPX=""
   fi
 )
 AC_SUBST(TEST_NGHTTPX)
 
-CADDY=/usr/bin/caddy
+if test -x /usr/bin/caddy; then
+  CADDY=/usr/bin/caddy
+elif test -x /usr/local/bin/caddy; then
+  CADDY=/usr/local/bin/caddy
+elif test -x "`brew --prefix 2>/dev/null`/bin/caddy"; then
+  CADDY=`brew --prefix`/bin/caddy
+fi
 AC_ARG_WITH(test-caddy,dnl
 AS_HELP_STRING([--with-test-caddy=PATH],[where to find caddy for testing]),
   CADDY=$withval
-  if test X"$OPT_CADDY" = "Xno"; then
+  if test X"$CADDY" = "Xno"; then
     CADDY=""
   fi
 )
 AC_SUBST(CADDY)
 
-VSFTPD=/usr/sbin/vsftpd
+if test -x /usr/sbin/vsftpd; then
+  VSFTPD=/usr/sbin/vsftpd
+elif test -x /usr/local/sbin/vsftpd; then
+  VSFTPD=/usr/local/sbin/vsftpd
+elif test -x "`brew --prefix 2>/dev/null`/sbin/vsftpd"; then
+  VSFTPD=`brew --prefix`/sbin/vsftpd
+fi
 AC_ARG_WITH(test-vsftpd,dnl
 AS_HELP_STRING([--with-test-vsftpd=PATH],[where to find vsftpd for testing]),
   VSFTPD=$withval
-  if test X"$OPT_VSFTPD" = "Xno"; then
+  if test X"$VSFTPD" = "Xno"; then
     VSFTPD=""
   fi
 )
@@ -440,6 +453,8 @@ AC_SYS_LARGEFILE
 XC_LIBTOOL
 
 LT_LANG([Windows Resource])
+
+AM_CONDITIONAL(NOT_CURL_CI, test -z "$CURL_CI")
 
 #
 # Automake conditionals based on libtool related checks
@@ -577,7 +592,7 @@ AM_CONDITIONAL(BUILD_UNITTESTS, test x$supports_unittests = xyes)
 # In order to detect support of sendmmsg() and accept4(), we need to escape the POSIX
 # jail by defining _GNU_SOURCE or <sys/socket.h> will not expose it.
 case $host_os in
-  linux*|cygwin*|msys*)
+  *linux*|cygwin*|msys*)
     CPPFLAGS="$CPPFLAGS -D_GNU_SOURCE"
     ;;
 esac
@@ -622,7 +637,6 @@ curl_cv_cygwin='no'
 case $host_os in
   cygwin*|msys*) curl_cv_cygwin='yes';;
 esac
-AM_CONDITIONAL(DOING_CYGWIN, test "x$curl_cv_cygwin" = xyes)
 
 AM_CONDITIONAL([HAVE_WINDRES],
   [test "$curl_cv_native_windows" = "yes" && test -n "${RC}"])

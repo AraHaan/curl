@@ -51,7 +51,7 @@ CFLAGS += @CURL_CFLAG_EXTRAS@
 # $(top_srcdir)/include is for libcurl's external include files
 # $(top_builddir)/lib is for libcurl's generated lib/curl_config.h file
 
-AM_CPPFLAGS = -I$(top_srcdir)/include        \
+AM_CPPFLAGS = -I$(top_srcdir)/include   \
               -I$(top_builddir)/lib
 
 # Prevent LIBS from being used for all link targets
@@ -74,25 +74,16 @@ include Makefile.inc
 
 if DOING_NATIVE_WINDOWS
 CSOURCES += dllmain.c
-else
-if DOING_CYGWIN
-CSOURCES += dllmain.c
-endif
 endif
 
 if USE_UNITY
 # Keep these separate to avoid duplicate definitions when linking libtests
 # in static mode.
-curl_EXCLUDE = curl_threads.c timediff.c warnless.c
+curl_EXCLUDE = curl_threads.c curlx/timediff.c curlx/warnless.c
 if CURLDEBUG
 # We must compile this source separately to avoid memdebug.h redefinitions
 # applying to it.
 curl_EXCLUDE += memdebug.c
-endif
-# For Cygwin always compile dllmain.c as a separate unit since it
-# includes windows.h, which should not be included in other units.
-if DOING_CYGWIN
-curl_EXCLUDE += dllmain.c
 endif
 libcurl_unity.c: $(top_srcdir)/scripts/mk-unity.pl $(CSOURCES)
 	@PERL@ $(top_srcdir)/scripts/mk-unity.pl $(srcdir) $(CSOURCES) --exclude $(curl_EXCLUDE) > libcurl_unity.c
@@ -163,9 +154,11 @@ checksrc:
 	$(CHECKSRC)(@PERL@ $(top_srcdir)/scripts/checksrc.pl -D$(srcdir) \
 	$(CSOURCES) $(HHEADERS))
 
+if NOT_CURL_CI
 if DEBUGBUILD
 # for debug builds, we scan the sources on all regular make invokes
 all-local: checksrc
+endif
 endif
 
 # disable the tests that are mostly causing false positives

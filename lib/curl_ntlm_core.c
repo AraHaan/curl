@@ -126,7 +126,7 @@
 #include "curl_ntlm_core.h"
 #include "curl_md5.h"
 #include "curl_hmac.h"
-#include "warnless.h"
+#include "curlx/warnless.h"
 #include "curl_endian.h"
 #include "curl_des.h"
 #include "curl_md4.h"
@@ -466,7 +466,7 @@ struct ms_filetime {
 static void time2filetime(struct ms_filetime *ft, time_t t)
 {
 #if SIZEOF_TIME_T > 4
-  t = (t + CURL_OFF_T_C(11644473600)) * 10000000;
+  t = (t + (curl_off_t)11644473600) * 10000000;
   ft->dwLowDateTime = (unsigned int) (t & 0xFFFFFFFF);
   ft->dwHighDateTime = (unsigned int) (t >> 32);
 #else

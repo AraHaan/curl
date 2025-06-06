@@ -943,31 +943,31 @@ typedef enum {
    have introduced work-arounds for this flaw but those work-arounds sometimes
    make the SSL communication fail. To regain functionality with those broken
    servers, a user can this way allow the vulnerability back. */
-#define CURLSSLOPT_ALLOW_BEAST (1<<0)
+#define CURLSSLOPT_ALLOW_BEAST (1L<<0)
 
 /* - NO_REVOKE tells libcurl to disable certificate revocation checks for those
    SSL backends where such behavior is present. */
-#define CURLSSLOPT_NO_REVOKE (1<<1)
+#define CURLSSLOPT_NO_REVOKE (1L<<1)
 
 /* - NO_PARTIALCHAIN tells libcurl to *NOT* accept a partial certificate chain
    if possible. The OpenSSL backend has this ability. */
-#define CURLSSLOPT_NO_PARTIALCHAIN (1<<2)
+#define CURLSSLOPT_NO_PARTIALCHAIN (1L<<2)
 
 /* - REVOKE_BEST_EFFORT tells libcurl to ignore certificate revocation offline
    checks and ignore missing revocation list for those SSL backends where such
    behavior is present. */
-#define CURLSSLOPT_REVOKE_BEST_EFFORT (1<<3)
+#define CURLSSLOPT_REVOKE_BEST_EFFORT (1L<<3)
 
 /* - CURLSSLOPT_NATIVE_CA tells libcurl to use standard certificate store of
    operating system. Currently implemented under MS-Windows. */
-#define CURLSSLOPT_NATIVE_CA (1<<4)
+#define CURLSSLOPT_NATIVE_CA (1L<<4)
 
 /* - CURLSSLOPT_AUTO_CLIENT_CERT tells libcurl to automatically locate and use
    a client certificate for authentication. (Schannel) */
-#define CURLSSLOPT_AUTO_CLIENT_CERT (1<<5)
+#define CURLSSLOPT_AUTO_CLIENT_CERT (1L<<5)
 
 /* If possible, send data using TLS 1.3 early data */
-#define CURLSSLOPT_EARLYDATA (1<<6)
+#define CURLSSLOPT_EARLYDATA (1L<<6)
 
 /* The default connection attempt delay in milliseconds for happy eyeballs.
    CURLOPT_HAPPY_EYEBALLS_TIMEOUT_MS.3 and happy-eyeballs-timeout-ms.d document
@@ -2813,17 +2813,17 @@ struct curl_slist {
  * *before* curl_global_init().
  *
  * The backend can be identified by the id (e.g. CURLSSLBACKEND_OPENSSL). The
- * backend can also be specified via the name parameter (passing -1 as id).
- * If both id and name are specified, the name will be ignored. If neither id
- * nor name are specified, the function will fail with
- * CURLSSLSET_UNKNOWN_BACKEND and set the "avail" pointer to the
- * NULL-terminated list of available backends.
+ * backend can also be specified via the name parameter (passing -1 as id). If
+ * both id and name are specified, the name will be ignored. If neither id nor
+ * name are specified, the function will fail with CURLSSLSET_UNKNOWN_BACKEND
+ * and set the "avail" pointer to the NULL-terminated list of available
+ * backends.
  *
  * Upon success, the function returns CURLSSLSET_OK.
  *
  * If the specified SSL backend is not available, the function returns
- * CURLSSLSET_UNKNOWN_BACKEND and sets the "avail" pointer to a NULL-terminated
- * list of available SSL backends.
+ * CURLSSLSET_UNKNOWN_BACKEND and sets the "avail" pointer to a
+ * NULL-terminated list of available SSL backends.
  *
  * The SSL backend can be set only once. If it has already been set, a
  * subsequent attempt to change it will result in a CURLSSLSET_TOO_LATE.
@@ -3326,9 +3326,7 @@ CURL_EXTERN CURLcode curl_easy_ssls_export(CURL *handle,
 #include "options.h"
 #include "header.h"
 #include "websockets.h"
-#ifndef CURL_SKIP_INCLUDE_MPRINTF
 #include "mprintf.h"
-#endif
 
 /* the typechecker does not work in C++ (yet) */
 #if defined(__GNUC__) && defined(__GNUC_MINOR__) && \

@@ -58,10 +58,10 @@
 #include "../connect.h"
 #include "../progress.h"
 #include "../strerror.h"
-#include "../dynbuf.h"
+#include "../curlx/dynbuf.h"
 #include "../http1.h"
 #include "../select.h"
-#include "../inet_pton.h"
+#include "../curlx/inet_pton.h"
 #include "../transfer.h"
 #include "vquic.h"
 #include "vquic_int.h"
@@ -71,7 +71,7 @@
 #include "../vtls/vtls_scache.h"
 #include "curl_ngtcp2.h"
 
-#include "../warnless.h"
+#include "../curlx/warnless.h"
 
 /* The last 3 #include files should be in this order */
 #include "../curl_printf.h"
@@ -89,6 +89,10 @@
  * Chunk size is large enough to take a full DATA frame */
 #define H3_STREAM_WINDOW_SIZE (128 * 1024)
 #define H3_STREAM_CHUNK_SIZE   (16 * 1024)
+#if H3_STREAM_CHUNK_SIZE < NGTCP2_MAX_UDP_PAYLOAD_SIZE
+#error H3_STREAM_CHUNK_SIZE smaller than NGTCP2_MAX_UDP_PAYLOAD_SIZE
+#endif
+
 /* The pool keeps spares around and half of a full stream windows
  * seems good. More does not seem to improve performance.
  * The benefit of the pool is that stream buffer to not keep
@@ -170,7 +174,7 @@ static void cf_ngtcp2_ctx_init(struct cf_ngtcp2_ctx *ctx)
   ctx->max_stream_window = H3_STREAM_WINDOW_SIZE;
   Curl_bufcp_init(&ctx->stream_bufcp, H3_STREAM_CHUNK_SIZE,
                   H3_STREAM_POOL_SPARES);
-  Curl_dyn_init(&ctx->scratch, CURL_MAX_HTTP_HEADER);
+  curlx_dyn_init(&ctx->scratch, CURL_MAX_HTTP_HEADER);
   Curl_uint_hash_init(&ctx->streams, 63, h3_stream_hash_free);
   ctx->initialized = TRUE;
 }
@@ -181,7 +185,7 @@ static void cf_ngtcp2_ctx_free(struct cf_ngtcp2_ctx *ctx)
     Curl_vquic_tls_cleanup(&ctx->tls);
     vquic_ctx_free(&ctx->q);
     Curl_bufcp_free(&ctx->stream_bufcp);
-    Curl_dyn_free(&ctx->scratch);
+    curlx_dyn_free(&ctx->scratch);
     Curl_uint_hash_destroy(&ctx->streams);
     Curl_ssl_peer_cleanup(&ctx->peer);
   }
@@ -478,14 +482,14 @@ static int cf_ngtcp2_handshake_completed(ngtcp2_conn *tconn, void *user_data)
   if(!ctx || !data)
     return NGHTTP3_ERR_CALLBACK_FAILURE;
 
-  ctx->handshake_at = Curl_now();
+  ctx->handshake_at = curlx_now();
   ctx->tls_handshake_complete = TRUE;
   cf->conn->bits.multiplex = TRUE; /* at least potentially multiplexed */
 
   ctx->tls_vrfy_result = Curl_vquic_tls_verify_peer(&ctx->tls, cf,
                                                     data, &ctx->peer);
   CURL_TRC_CF(data, cf, "handshake complete after %dms",
-             (int)Curl_timediff(ctx->handshake_at, ctx->started_at));
+             (int)curlx_timediff(ctx->handshake_at, ctx->started_at));
   /* In case of earlydata, where we simulate being connected, update
    * the handshake time when we really did connect */
   if(ctx->use_earlydata)
@@ -1101,18 +1105,18 @@ static int cb_h3_recv_header(nghttp3_conn *conn, int64_t sid,
                                      (const char *)h3val.base, h3val.len);
     if(result)
       return -1;
-    Curl_dyn_reset(&ctx->scratch);
-    result = Curl_dyn_addn(&ctx->scratch, STRCONST("HTTP/3 "));
+    curlx_dyn_reset(&ctx->scratch);
+    result = curlx_dyn_addn(&ctx->scratch, STRCONST("HTTP/3 "));
     if(!result)
-      result = Curl_dyn_addn(&ctx->scratch,
-                             (const char *)h3val.base, h3val.len);
+      result = curlx_dyn_addn(&ctx->scratch,
+                              (const char *)h3val.base, h3val.len);
     if(!result)
-      result = Curl_dyn_addn(&ctx->scratch, STRCONST(" \r\n"));
+      result = curlx_dyn_addn(&ctx->scratch, STRCONST(" \r\n"));
     if(!result)
-      h3_xfer_write_resp_hd(cf, data, stream, Curl_dyn_ptr(&ctx->scratch),
-                            Curl_dyn_len(&ctx->scratch), FALSE);
+      h3_xfer_write_resp_hd(cf, data, stream, curlx_dyn_ptr(&ctx->scratch),
+                            curlx_dyn_len(&ctx->scratch), FALSE);
     CURL_TRC_CF(data, cf, "[%" FMT_PRId64 "] status: %s",
-                stream_id, Curl_dyn_ptr(&ctx->scratch));
+                stream_id, curlx_dyn_ptr(&ctx->scratch));
     if(result) {
       return -1;
     }
@@ -1122,19 +1126,19 @@ static int cb_h3_recv_header(nghttp3_conn *conn, int64_t sid,
     CURL_TRC_CF(data, cf, "[%" FMT_PRId64 "] header: %.*s: %.*s",
                 stream_id, (int)h3name.len, h3name.base,
                 (int)h3val.len, h3val.base);
-    Curl_dyn_reset(&ctx->scratch);
-    result = Curl_dyn_addn(&ctx->scratch,
-                           (const char *)h3name.base, h3name.len);
+    curlx_dyn_reset(&ctx->scratch);
+    result = curlx_dyn_addn(&ctx->scratch,
+                            (const char *)h3name.base, h3name.len);
     if(!result)
-      result = Curl_dyn_addn(&ctx->scratch, STRCONST(": "));
+      result = curlx_dyn_addn(&ctx->scratch, STRCONST(": "));
     if(!result)
-      result = Curl_dyn_addn(&ctx->scratch,
-                             (const char *)h3val.base, h3val.len);
+      result = curlx_dyn_addn(&ctx->scratch,
+                              (const char *)h3val.base, h3val.len);
     if(!result)
-      result = Curl_dyn_addn(&ctx->scratch, STRCONST("\r\n"));
+      result = curlx_dyn_addn(&ctx->scratch, STRCONST("\r\n"));
     if(!result)
-      h3_xfer_write_resp_hd(cf, data, stream, Curl_dyn_ptr(&ctx->scratch),
-                            Curl_dyn_len(&ctx->scratch), FALSE);
+      h3_xfer_write_resp_hd(cf, data, stream, curlx_dyn_ptr(&ctx->scratch),
+                            curlx_dyn_len(&ctx->scratch), FALSE);
   }
   return 0;
 }
@@ -2108,6 +2112,7 @@ static CURLcode cf_ngtcp2_shutdown(struct Curl_cfilter *cf,
       }
     }
 
+    DEBUGASSERT(Curl_bufq_is_empty(&ctx->q.sendbuf));
     ctx->shutdown_started = TRUE;
     nwritten = ngtcp2_conn_write_connection_close(
       ctx->qconn, NULL, /* path */
@@ -2117,14 +2122,21 @@ static CURLcode cf_ngtcp2_shutdown(struct Curl_cfilter *cf,
     CURL_TRC_CF(data, cf, "start shutdown(err_type=%d, err_code=%"
                 FMT_PRIu64 ") -> %d", ctx->last_error.type,
                 (curl_uint64_t)ctx->last_error.error_code, (int)nwritten);
+    /* there are cases listed in ngtcp2 documentation where this call
+     * may fail. Since we are doing a connection shutdown as graceful
+     * as we can, such an error is ignored here. */
     if(nwritten > 0) {
-      Curl_bufq_write(&ctx->q.sendbuf, (const unsigned char *)buffer,
-                      (size_t)nwritten, &result);
+      /* Ignore amount written. sendbuf was empty and has always room for
+       * NGTCP2_MAX_UDP_PAYLOAD_SIZE. It can only completely fail, in which
+       * case `result` is set non zero. */
+      (void)Curl_bufq_write(&ctx->q.sendbuf, (const unsigned char *)buffer,
+                            (size_t)nwritten, &result);
       if(result) {
         CURL_TRC_CF(data, cf, "error %d adding shutdown packets to sendbuf, "
                     "aborting shutdown", result);
         goto out;
       }
+
       ctx->q.no_gso = TRUE;
       ctx->q.gsolen = (size_t)nwritten;
       ctx->q.split_len = 0;
@@ -2566,7 +2578,7 @@ static CURLcode cf_ngtcp2_connect(struct Curl_cfilter *cf,
   }
 
   *done = FALSE;
-  now = Curl_now();
+  now = curlx_now();
   pktx_init(&pktx, cf, data);
 
   CF_DATA_SAVE(save, cf, data);
@@ -2669,7 +2681,7 @@ static CURLcode cf_ngtcp2_query(struct Curl_cfilter *cf,
   }
   case CF_QUERY_CONNECT_REPLY_MS:
     if(ctx->q.got_first_byte) {
-      timediff_t ms = Curl_timediff(ctx->q.first_byte_at, ctx->started_at);
+      timediff_t ms = curlx_timediff(ctx->q.first_byte_at, ctx->started_at);
       *pres1 = (ms < INT_MAX) ? (int)ms : INT_MAX;
     }
     else
@@ -2716,7 +2728,7 @@ static bool cf_ngtcp2_conn_is_alive(struct Curl_cfilter *cf,
    * it will close the connection when it expires. */
   rp = ngtcp2_conn_get_remote_transport_params(ctx->qconn);
   if(rp && rp->max_idle_timeout) {
-    timediff_t idletime = Curl_timediff(Curl_now(), ctx->q.last_io);
+    timediff_t idletime = curlx_timediff(curlx_now(), ctx->q.last_io);
     if(idletime > 0 && (uint64_t)idletime > rp->max_idle_timeout)
       goto out;
   }

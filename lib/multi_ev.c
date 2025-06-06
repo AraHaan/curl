@@ -31,13 +31,13 @@
 #include "cfilters.h"
 #include "curl_trc.h"
 #include "multiif.h"
-#include "timeval.h"
+#include "curlx/timeval.h"
 #include "multi_ev.h"
 #include "select.h"
 #include "uint-bset.h"
 #include "uint-spbset.h"
 #include "uint-table.h"
-#include "warnless.h"
+#include "curlx/warnless.h"
 #include "multihandle.h"
 #include "socks.h"
 /* The last 3 #include files should be in this order */
@@ -303,7 +303,7 @@ static CURLMcode mev_pollset_diff(struct Curl_multi *multi,
   CURLMcode mresult;
 
   /* The transfer `data` reports in `ps` the sockets it is interested
-   * in and which combinatino of CURL_POLL_IN/CURL_POLL_OUT it wants
+   * in and which combination of CURL_POLL_IN/CURL_POLL_OUT it wants
    * to have monitored for events.
    * There can be more than 1 transfer interested in the same socket
    * and 1 transfer might be interested in more than 1 socket.
