@@ -589,7 +589,7 @@ CURLcode Curl_x509_GTime2str(struct dynbuf *store,
  * Return error code.
  */
 static CURLcode UTime2str(struct dynbuf *store,
-                             const char *beg, const char *end)
+                          const char *beg, const char *end)
 {
   const char *tzp;
   size_t tzl;
@@ -859,7 +859,7 @@ int Curl_parseX509(struct Curl_X509certificate *cert,
   if(!getASN1Element(&cert->subjectPublicKey, ccp,
                      cert->subjectPublicKeyInfo.end))
     return -1;
-  /* Get optional issuerUiqueID, subjectUniqueID and extensions. */
+  /* Get optional issuerUniqueID, subjectUniqueID and extensions. */
   cert->issuerUniqueID.tag = cert->subjectUniqueID.tag = 0;
   cert->extensions.tag = elem.tag = 0;
   cert->issuerUniqueID.header = cert->subjectUniqueID.header = NULL;

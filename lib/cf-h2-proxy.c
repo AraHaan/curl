@@ -28,6 +28,7 @@
 
 #include <nghttp2/nghttp2.h>
 #include "urldata.h"
+#include "url.h"
 #include "cfilters.h"
 #include "connect.h"
 #include "curl_trc.h"
@@ -80,7 +81,7 @@ struct tunnel_stream {
 };
 
 static CURLcode tunnel_stream_init(struct Curl_cfilter *cf,
-                                    struct tunnel_stream *ts)
+                                   struct tunnel_stream *ts)
 {
   const char *hostname;
   int port;
@@ -267,8 +268,8 @@ static int proxy_h2_client_new(struct Curl_cfilter *cf,
 }
 
 static ssize_t on_session_send(nghttp2_session *h2,
-                              const uint8_t *buf, size_t blen,
-                              int flags, void *userp);
+                               const uint8_t *buf, size_t blen,
+                               int flags, void *userp);
 static int proxy_h2_on_frame_recv(nghttp2_session *session,
                                   const nghttp2_frame *frame,
                                   void *userp);
@@ -1315,7 +1316,7 @@ static CURLcode cf_h2_proxy_recv(struct Curl_cfilter *cf,
 {
   struct cf_h2_proxy_ctx *ctx = cf->ctx;
   struct cf_call_data save;
-  CURLcode result, r2;
+  CURLcode result;
 
   *pnread = 0;
   CF_DATA_SAVE(save, cf, data);
@@ -1339,9 +1340,7 @@ static CURLcode cf_h2_proxy_recv(struct Curl_cfilter *cf,
     nghttp2_session_consume(ctx->h2, ctx->tunnel.stream_id, *pnread);
   }
 
-  r2 = proxy_h2_progress_egress(cf, data);
-  if(r2 && (r2 != CURLE_AGAIN))
-    result = r2;
+  result = Curl_1st_fatal(result, proxy_h2_progress_egress(cf, data));
 
 out:
   if(!Curl_bufq_is_empty(&ctx->tunnel.recvbuf) &&
@@ -1364,7 +1363,7 @@ static CURLcode cf_h2_proxy_send(struct Curl_cfilter *cf,
   struct cf_h2_proxy_ctx *ctx = cf->ctx;
   struct cf_call_data save;
   int rv;
-  CURLcode result, r2;
+  CURLcode result;
 
   (void)eos;
   *pnwritten = 0;
@@ -1394,19 +1393,8 @@ static CURLcode cf_h2_proxy_send(struct Curl_cfilter *cf,
     }
   }
 
-  r2 = proxy_h2_progress_ingress(cf, data);
-  if(r2 && (r2 != CURLE_AGAIN)) {
-    result = r2;
-    goto out;
-  }
-
-  /* Call the nghttp2 send loop and flush to write ALL buffered data,
-   * headers and/or request body completely out to the network */
-  r2 = proxy_h2_progress_egress(cf, data);
-  if(r2 && (r2 != CURLE_AGAIN)) {
-    result = r2;
-    goto out;
-  }
+  result = Curl_1st_fatal(result, proxy_h2_progress_ingress(cf, data));
+  result = Curl_1st_fatal(result, proxy_h2_progress_egress(cf, data));
 
   if(!result && proxy_h2_should_close_session(ctx)) {
     /* nghttp2 thinks this session is done. If the stream has not been
@@ -1513,15 +1501,16 @@ static bool cf_h2_proxy_is_alive(struct Curl_cfilter *cf,
                                  bool *input_pending)
 {
   struct cf_h2_proxy_ctx *ctx = cf->ctx;
-  CURLcode result;
+  bool alive;
   struct cf_call_data save;
 
+  *input_pending = FALSE;
   CF_DATA_SAVE(save, cf, data);
-  result = (ctx && ctx->h2 && proxy_h2_connisalive(cf, data, input_pending));
+  alive = (ctx && ctx->h2 && proxy_h2_connisalive(cf, data, input_pending));
   CURL_TRC_CF(data, cf, "[0] conn alive -> %d, input_pending=%d",
-              result, *input_pending);
+              alive, *input_pending);
   CF_DATA_RESTORE(cf, save);
-  return result;
+  return alive;
 }
 
 static CURLcode cf_h2_proxy_query(struct Curl_cfilter *cf,

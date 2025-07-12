@@ -1146,8 +1146,8 @@ static CURLcode socks_proxy_cf_connect(struct Curl_cfilter *cf,
 }
 
 static void socks_cf_adjust_pollset(struct Curl_cfilter *cf,
-                                     struct Curl_easy *data,
-                                     struct easy_pollset *ps)
+                                    struct Curl_easy *data,
+                                    struct easy_pollset *ps)
 {
   struct socks_state *sx = cf->ctx;
 
@@ -1193,13 +1193,15 @@ static CURLcode socks_cf_query(struct Curl_cfilter *cf,
 {
   struct socks_state *sx = cf->ctx;
 
-  switch(query) {
-  case CF_QUERY_HOST_PORT:
-    *pres1 = sx->remote_port;
-    *((const char **)pres2) = sx->hostname;
-    return CURLE_OK;
-  default:
-    break;
+  if(sx) {
+    switch(query) {
+    case CF_QUERY_HOST_PORT:
+      *pres1 = sx->remote_port;
+      *((const char **)pres2) = sx->hostname;
+      return CURLE_OK;
+    default:
+      break;
+    }
   }
   return cf->next ?
     cf->next->cft->query(cf->next, data, query, pres1, pres2) :

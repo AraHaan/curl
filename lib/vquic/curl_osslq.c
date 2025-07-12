@@ -54,6 +54,7 @@
 #include "../vtls/vtls.h"
 #include "../vtls/openssl.h"
 #include "curl_osslq.h"
+#include "../url.h"
 #include "../curlx/warnless.h"
 
 /* The last 3 #include files should be in this order */
@@ -559,7 +560,7 @@ static CURLcode cf_osslq_ssl_err(struct Curl_cfilter *cf,
 }
 
 static CURLcode cf_osslq_verify_peer(struct Curl_cfilter *cf,
-                                  struct Curl_easy *data)
+                                     struct Curl_easy *data)
 {
   struct cf_osslq_ctx *ctx = cf->ctx;
 
@@ -1241,8 +1242,8 @@ struct h3_quic_recv_ctx {
 };
 
 static CURLcode h3_quic_recv(void *reader_ctx,
-                            unsigned char *buf, size_t len,
-                            size_t *pnread)
+                             unsigned char *buf, size_t len,
+                             size_t *pnread)
 {
   struct h3_quic_recv_ctx *x = reader_ctx;
   int rv;
@@ -1995,7 +1996,7 @@ static CURLcode cf_osslq_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   struct h3_stream_ctx *stream = H3_STREAM_CTX(ctx, data);
   struct cf_call_data save;
   ssize_t nwritten;
-  CURLcode result = CURLE_OK, r2;
+  CURLcode result = CURLE_OK;
 
   (void)eos; /* use to end stream */
   CF_DATA_SAVE(save, cf, data);
@@ -2049,14 +2050,11 @@ static CURLcode cf_osslq_send(struct Curl_cfilter *cf, struct Curl_easy *data,
     (void)nghttp3_conn_resume_stream(ctx->h3.conn, stream->s.id);
   }
 
-  r2 = cf_progress_egress(cf, data);
-  if(r2)
-    result = r2;
+  result = Curl_1st_err(result, cf_progress_egress(cf, data));
 
 out:
-  r2 = check_and_set_expiry(cf, data);
-  if(r2)
-    result = r2;
+  result = Curl_1st_err(result, check_and_set_expiry(cf, data));
+
   CURL_TRC_CF(data, cf, "[%" FMT_PRId64 "] cf_send(len=%zu) -> %d, %zu",
               stream ? stream->s.id : -1, len, result, *pnwritten);
   CF_DATA_RESTORE(cf, save);
@@ -2093,7 +2091,7 @@ static CURLcode cf_osslq_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
   struct cf_osslq_ctx *ctx = cf->ctx;
   struct h3_stream_ctx *stream = H3_STREAM_CTX(ctx, data);
   struct cf_call_data save;
-  CURLcode result = CURLE_OK, r2;
+  CURLcode result = CURLE_OK;
 
   (void)ctx;
   CF_DATA_SAVE(save, cf, data);
@@ -2117,11 +2115,9 @@ static CURLcode cf_osslq_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
     }
   }
 
-  r2 = cf_progress_ingress(cf, data);
-  if(r2) {
-    result = r2;
+  result = Curl_1st_err(result, cf_progress_ingress(cf, data));
+  if(result)
     goto out;
-  }
 
   /* recvbuf had nothing before, maybe after progressing ingress? */
   if(!*pnread && !Curl_bufq_is_empty(&stream->recvbuf)) {
@@ -2145,14 +2141,9 @@ static CURLcode cf_osslq_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
   }
 
 out:
-  if(cf_progress_egress(cf, data)) {
-    result = CURLE_SEND_ERROR;
-  }
-  else {
-    r2 = check_and_set_expiry(cf, data);
-    if(r2)
-      result = r2;
-  }
+  result = Curl_1st_err(result, cf_progress_egress(cf, data));
+  result = Curl_1st_err(result, check_and_set_expiry(cf, data));
+
   CURL_TRC_CF(data, cf, "[%" FMT_PRId64 "] cf_recv(len=%zu) -> %d, %zu",
               stream ? stream->s.id : -1, len, result, *pnread);
   CF_DATA_RESTORE(cf, save);
@@ -2313,8 +2304,9 @@ static CURLcode cf_osslq_query(struct Curl_cfilter *cf,
   case CF_QUERY_MAX_CONCURRENT: {
 #ifdef SSL_VALUE_QUIC_STREAM_BIDI_LOCAL_AVAIL
     /* Added in OpenSSL v3.3.x */
-    uint64_t v;
-    if(!SSL_get_value_uint(ctx->tls.ossl.ssl, SSL_VALUE_CLASS_GENERIC,
+    uint64_t v = 0;
+    if(ctx->tls.ossl.ssl &&
+       !SSL_get_value_uint(ctx->tls.ossl.ssl, SSL_VALUE_CLASS_GENERIC,
                            SSL_VALUE_QUIC_STREAM_BIDI_LOCAL_AVAIL, &v)) {
       CURL_TRC_CF(data, cf, "error getting available local bidi streams");
       return CURLE_HTTP3;
@@ -2351,6 +2343,14 @@ static CURLcode cf_osslq_query(struct Curl_cfilter *cf,
   case CF_QUERY_HTTP_VERSION:
     *pres1 = 30;
     return CURLE_OK;
+  case CF_QUERY_SSL_INFO:
+  case CF_QUERY_SSL_CTX_INFO: {
+    struct curl_tlssessioninfo *info = pres2;
+    if(Curl_vquic_tls_get_ssl_info(&ctx->tls,
+                                   (query == CF_QUERY_SSL_INFO), info))
+      return CURLE_OK;
+    break;
+  }
   default:
     break;
   }

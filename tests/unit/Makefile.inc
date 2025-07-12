@@ -28,9 +28,6 @@ BUNDLE = units
 # Files referenced from the bundle source
 FIRST_C = ../libtest/first.c
 
-# Common files used by test programs
-UTILS_H = curlcheck.h
-
 # All unit test programs
 TESTS_C = \
   unit1300.c            unit1302.c unit1303.c unit1304.c unit1305.c \
@@ -45,4 +42,4 @@ TESTS_C = \
   unit1979.c unit1980.c \
   unit2600.c unit2601.c unit2602.c unit2603.c unit2604.c \
   unit3200.c                                             unit3205.c \
-  unit3211.c unit3212.c unit3213.c
+  unit3211.c unit3212.c unit3213.c unit3214.c

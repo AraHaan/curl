@@ -46,6 +46,7 @@
 #include "vquic-tls.h"
 #include "curl_quiche.h"
 #include "../transfer.h"
+#include "../url.h"
 #include "../curlx/inet_pton.h"
 #include "../vtls/openssl.h"
 #include "../vtls/keylog.h"
@@ -817,8 +818,8 @@ out:
 }
 
 static CURLcode recv_closed_stream(struct Curl_cfilter *cf,
-                                  struct Curl_easy *data,
-                                  size_t *pnread)
+                                   struct Curl_easy *data,
+                                   size_t *pnread)
 {
   struct cf_quiche_ctx *ctx = cf->ctx;
   struct h3_stream_ctx *stream = H3_STREAM_CTX(ctx, data);
@@ -848,7 +849,7 @@ static CURLcode cf_quiche_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
 {
   struct cf_quiche_ctx *ctx = cf->ctx;
   struct h3_stream_ctx *stream = H3_STREAM_CTX(ctx, data);
-  CURLcode result = CURLE_OK, r2;
+  CURLcode result = CURLE_OK;
 
   *pnread = 0;
   vquic_ctx_update_time(&ctx->q);
@@ -896,11 +897,7 @@ static CURLcode cf_quiche_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
   }
 
 out:
-  r2 = cf_flush_egress(cf, data);
-  if(r2) {
-    CURL_TRC_CF(data, cf, "cf_recv, flush egress failed");
-    result = r2;
-  }
+  result = Curl_1st_err(result, cf_flush_egress(cf, data));
   if(*pnread > 0)
     ctx->data_recvd += *pnread;
   CURL_TRC_CF(data, cf, "[%"FMT_PRIu64"] cf_recv(total=%"
@@ -1085,7 +1082,7 @@ static CURLcode cf_quiche_send(struct Curl_cfilter *cf, struct Curl_easy *data,
 {
   struct cf_quiche_ctx *ctx = cf->ctx;
   struct h3_stream_ctx *stream = H3_STREAM_CTX(ctx, data);
-  CURLcode result, r2;
+  CURLcode result;
 
   *pnwritten = 0;
   vquic_ctx_update_time(&ctx->q);
@@ -1126,9 +1123,7 @@ static CURLcode cf_quiche_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   }
 
 out:
-  r2 = cf_flush_egress(cf, data);
-  if(r2)
-    result = r2;
+  result = Curl_1st_err(result, cf_flush_egress(cf, data));
 
   CURL_TRC_CF(data, cf, "[%" FMT_PRIu64 "] cf_send(len=%zu) -> %d, %zu",
               stream ? stream->id : (curl_uint64_t)~0, len,
@@ -1521,7 +1516,7 @@ static CURLcode cf_quiche_query(struct Curl_cfilter *cf,
   switch(query) {
   case CF_QUERY_MAX_CONCURRENT: {
     curl_uint64_t max_streams = CONN_ATTACHED(cf->conn);
-    if(!ctx->goaway) {
+    if(!ctx->goaway && ctx->qconn) {
       max_streams += quiche_conn_peer_streams_left_bidi(ctx->qconn);
     }
     *pres1 = (max_streams > INT_MAX) ? INT_MAX : (int)max_streams;
@@ -1553,6 +1548,14 @@ static CURLcode cf_quiche_query(struct Curl_cfilter *cf,
   case CF_QUERY_HTTP_VERSION:
     *pres1 = 30;
     return CURLE_OK;
+  case CF_QUERY_SSL_INFO:
+  case CF_QUERY_SSL_CTX_INFO: {
+    struct curl_tlssessioninfo *info = pres2;
+    if(Curl_vquic_tls_get_ssl_info(&ctx->tls,
+                                   (query == CF_QUERY_SSL_INFO), info))
+      return CURLE_OK;
+    break;
+  }
   default:
     break;
   }
@@ -1656,22 +1659,6 @@ out:
   }
 
   return result;
-}
-
-bool Curl_conn_is_quiche(const struct Curl_easy *data,
-                         const struct connectdata *conn,
-                         int sockindex)
-{
-  struct Curl_cfilter *cf = conn ? conn->cfilter[sockindex] : NULL;
-
-  (void)data;
-  for(; cf; cf = cf->next) {
-    if(cf->cft == &Curl_cft_http3)
-      return TRUE;
-    if(cf->cft->flags & CF_TYPE_IP_CONNECT)
-      return FALSE;
-  }
-  return FALSE;
 }
 
 #endif

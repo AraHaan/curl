@@ -32,6 +32,7 @@ struct Curl_easy;
 struct Curl_dns_entry;
 struct connectdata;
 struct ip_quadruple;
+struct curl_tlssessioninfo;
 
 /* Callback to destroy resources held by this filter instance.
  * Implementations MUST NOT chain calls to cf->next.
@@ -151,6 +152,12 @@ typedef CURLcode Curl_cft_cntrl(struct Curl_cfilter *cf,
  * - CF_QUERY_IP_INFO: res1 says if connection used IPv6, res2 is the
  *                   ip quadruple
  * - CF_QUERY_HOST_PORT: the remote hostname and port a filter talks to
+ * - CF_QUERY_SSL_INFO: fill out the passed curl_tlssessioninfo with the
+ *                      internal from the SSL secured connection when
+ *                      available.
+ * - CF_QUERY_SSL_CTX_INFO: same as CF_QUERY_SSL_INFO, but give the SSL_CTX
+ *                      when available, or the same internal pointer
+ *                      when the TLS stack does not differentiate.
  */
 /*      query                             res1       res2     */
 #define CF_QUERY_MAX_CONCURRENT     1  /* number     -        */
@@ -166,6 +173,8 @@ typedef CURLcode Curl_cft_cntrl(struct Curl_cfilter *cf,
  * to NULL when not connected. */
 #define CF_QUERY_REMOTE_ADDR       10  /* -          `Curl_sockaddr_ex *` */
 #define CF_QUERY_HOST_PORT         11  /* port       const char * */
+#define CF_QUERY_SSL_INFO          12  /* -    struct curl_tlssessioninfo * */
+#define CF_QUERY_SSL_CTX_INFO      13  /* -    struct curl_tlssessioninfo * */
 
 /**
  * Query the cfilter for properties. Filters ignorant of a query will
@@ -380,6 +389,15 @@ bool Curl_conn_is_ip_connected(struct Curl_easy *data, int sockindex);
  */
 bool Curl_conn_is_ssl(struct connectdata *conn, int sockindex);
 
+/*
+ * Fill `info` with information about the TLS instance securing
+ * the connection when available, otherwise e.g. when
+ * Curl_conn_is_ssl() is FALSE, return FALSE.
+ */
+bool Curl_conn_get_ssl_info(struct Curl_easy *data,
+                            struct connectdata *conn, int sockindex,
+                            struct curl_tlssessioninfo *info);
+
 /**
  * Connection provides multiplexing of easy handles at `socketindex`.
  */
@@ -439,7 +457,7 @@ Curl_conn_get_remote_addr(struct Curl_easy *data, int sockindex);
 void Curl_conn_forget_socket(struct Curl_easy *data, int sockindex);
 
 /**
- * Adjust the pollset for the filter chain startgin at `cf`.
+ * Adjust the pollset for the filter chain starting at `cf`.
  */
 void Curl_conn_cf_adjust_pollset(struct Curl_cfilter *cf,
                                  struct Curl_easy *data,

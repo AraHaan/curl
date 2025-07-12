@@ -1951,7 +1951,7 @@ static void h2_pri_spec(struct cf_h2_ctx *ctx,
  * Flush any out data pending in the network buffer.
  */
 static CURLcode h2_progress_egress(struct Curl_cfilter *cf,
-                                  struct Curl_easy *data)
+                                   struct Curl_easy *data)
 {
   struct cf_h2_ctx *ctx = cf->ctx;
   struct h2_stream_ctx *stream = H2_STREAM_CTX(ctx, data);
@@ -2713,15 +2713,16 @@ static bool cf_h2_is_alive(struct Curl_cfilter *cf,
                            bool *input_pending)
 {
   struct cf_h2_ctx *ctx = cf->ctx;
-  CURLcode result;
+  bool alive;
   struct cf_call_data save;
 
+  *input_pending = FALSE;
   CF_DATA_SAVE(save, cf, data);
-  result = (ctx && ctx->h2 && http2_connisalive(cf, data, input_pending));
+  alive = (ctx && ctx->h2 && http2_connisalive(cf, data, input_pending));
   CURL_TRC_CF(data, cf, "conn alive -> %d, input_pending=%d",
-              result, *input_pending);
+              alive, *input_pending);
   CF_DATA_RESTORE(cf, save);
-  return result;
+  return alive;
 }
 
 static CURLcode cf_h2_keep_alive(struct Curl_cfilter *cf,
@@ -2749,7 +2750,7 @@ static CURLcode cf_h2_query(struct Curl_cfilter *cf,
     DEBUGASSERT(pres1);
 
     CF_DATA_SAVE(save, cf, data);
-    if(nghttp2_session_check_request_allowed(ctx->h2) == 0) {
+    if(!ctx->h2 || !nghttp2_session_check_request_allowed(ctx->h2)) {
       /* the limit is what we have in use right now */
       effective_max = CONN_ATTACHED(cf->conn);
     }

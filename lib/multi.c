@@ -621,7 +621,7 @@ static CURLcode multi_done(struct Curl_easy *data,
                                                 after an error was detected */
                            bool premature)
 {
-  CURLcode result, r2;
+  CURLcode result;
   struct connectdata *conn = data->conn;
   struct multi_done_ctx mdctx;
 
@@ -670,9 +670,7 @@ static CURLcode multi_done(struct Curl_easy *data,
   }
 
   /* Make sure that transfer client writes are really done now. */
-  r2 = Curl_xfer_write_done(data, premature);
-  if(r2 && !result)
-    result = r2;
+  result = Curl_1st_err(result, Curl_xfer_write_done(data, premature));
 
   /* Inform connection filters that this transfer is done */
   Curl_conn_ev_data_done(data, premature);
@@ -2811,7 +2809,7 @@ CURLMcode curl_multi_cleanup(CURLM *m)
 #ifdef DEBUGBUILD
         if(mid != data->mid) {
           CURL_TRC_M(data, "multi_cleanup: still present with mid=%u, "
-                  "but unexpected data->mid=%u\n", mid, data->mid);
+                     "but unexpected data->mid=%u\n", mid, data->mid);
           DEBUGASSERT(0);
         }
 #endif
@@ -3044,7 +3042,7 @@ static CURLMcode multi_run_dirty(struct multi_run_ctx *mrc)
           continue;
         }
         else if(!Curl_uint_bset_contains(&multi->process, mid)) {
-          /* We are no longer proecessing this transfer */
+          /* We are no longer processing this transfer */
           Curl_uint_bset_remove(&multi->dirty, mid);
           continue;
         }
@@ -3265,7 +3263,7 @@ static bool multi_has_dirties(struct Curl_multi *multi)
       if(data) {
         if(Curl_uint_bset_contains(&multi->process, mid))
           return TRUE;
-        /* We are no longer proecessing this transfer */
+        /* We are no longer processing this transfer */
         Curl_uint_bset_remove(&multi->dirty, mid);
       }
       else {
@@ -3896,7 +3894,7 @@ void Curl_multi_mark_dirty(struct Curl_easy *data)
 
 #ifdef DEBUGBUILD
 static void multi_xfer_dump(struct Curl_multi *multi, unsigned int mid,
-                             void *entry)
+                            void *entry)
 {
   struct Curl_easy *data = entry;
 
