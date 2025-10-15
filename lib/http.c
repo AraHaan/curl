@@ -1977,6 +1977,9 @@ static CURLcode http_target(struct Curl_easy *data,
   CURLcode result = CURLE_OK;
   const char *path = data->state.up.path;
   const char *query = data->state.up.query;
+#ifndef CURL_DISABLE_PROXY
+  struct connectdata *conn = data->conn;
+#endif
 
   if(data->set.str[STRING_TARGET]) {
     path = data->set.str[STRING_TARGET];
@@ -1984,7 +1987,7 @@ static CURLcode http_target(struct Curl_easy *data,
   }
 
 #ifndef CURL_DISABLE_PROXY
-  if(data->conn->bits.httpproxy && !data->conn->bits.tunnel_proxy) {
+  if(conn->bits.httpproxy && !conn->bits.tunnel_proxy) {
     /* Using a proxy but does not tunnel through it */
 
     /* The path sent to the proxy is in fact the entire URL. But if the remote
@@ -1998,8 +2001,8 @@ static CURLcode http_target(struct Curl_easy *data,
     if(!h)
       return CURLE_OUT_OF_MEMORY;
 
-    if(data->conn->host.dispname != data->conn->host.name) {
-      uc = curl_url_set(h, CURLUPART_HOST, data->conn->host.name, 0);
+    if(conn->host.dispname != conn->host.name) {
+      uc = curl_url_set(h, CURLUPART_HOST, conn->host.name, 0);
       if(uc) {
         curl_url_cleanup(h);
         return CURLE_OUT_OF_MEMORY;
@@ -2040,26 +2043,25 @@ static CURLcode http_target(struct Curl_easy *data,
     if(result)
       return result;
 
-    if(curl_strequal("ftp", data->state.up.scheme)) {
-      if(data->set.proxy_transfer_mode) {
-        /* when doing ftp, append ;type=<a|i> if not present */
-        char *type = strstr(path, ";type=");
-        if(type && type[6] && type[7] == 0) {
-          switch(Curl_raw_toupper(type[6])) {
-          case 'A':
-          case 'D':
-          case 'I':
-            break;
-          default:
-            type = NULL;
-          }
+    if(curl_strequal("ftp", data->state.up.scheme) &&
+       data->set.proxy_transfer_mode) {
+      /* when doing ftp, append ;type=<a|i> if not present */
+      size_t len = strlen(path);
+      bool type_present = FALSE;
+      if((len >= 7) && !memcmp(&path[len - 7], ";type=", 6)) {
+        switch(Curl_raw_toupper(path[len - 1])) {
+        case 'A':
+        case 'D':
+        case 'I':
+          type_present = TRUE;
+          break;
         }
-        if(!type) {
-          result = curlx_dyn_addf(r, ";type=%c",
-                                  data->state.prefer_ascii ? 'a' : 'i');
-          if(result)
-            return result;
-        }
+      }
+      if(!type_present) {
+        result = curlx_dyn_addf(r, ";type=%c",
+                                data->state.prefer_ascii ? 'a' : 'i');
+        if(result)
+          return result;
       }
     }
   }
@@ -2747,6 +2749,7 @@ static CURLcode http_add_hd(struct Curl_easy *data,
                             Curl_HttpReq httpreq)
 {
   CURLcode result = CURLE_OK;
+  struct connectdata *conn = data->conn;
   switch(id) {
   case H1_HD_REQUEST:
     /* add the main request stuff */
@@ -2819,8 +2822,8 @@ static CURLcode http_add_hd(struct Curl_easy *data,
 
 #ifndef CURL_DISABLE_PROXY
   case H1_HD_PROXY_CONNECTION:
-    if(data->conn->bits.httpproxy &&
-       !data->conn->bits.tunnel_proxy &&
+    if(conn->bits.httpproxy &&
+       !conn->bits.tunnel_proxy &&
        !Curl_checkheaders(data, STRCONST("Proxy-Connection")) &&
        !Curl_checkProxyheaders(data, data->conn, STRCONST("Proxy-Connection")))
       result = curlx_dyn_add(req, "Proxy-Connection: Keep-Alive\r\n");
@@ -2833,11 +2836,10 @@ static CURLcode http_add_hd(struct Curl_easy *data,
 
 #ifndef CURL_DISABLE_ALTSVC
   case H1_HD_ALT_USED:
-    if(data->conn->bits.altused &&
-       !Curl_checkheaders(data, STRCONST("Alt-Used")))
+    if(conn->bits.altused && !Curl_checkheaders(data, STRCONST("Alt-Used")))
       result = curlx_dyn_addf(req, "Alt-Used: %s:%d\r\n",
-                              data->conn->conn_to_host.name,
-                              data->conn->conn_to_port);
+                              conn->conn_to_host.name,
+                              conn->conn_to_port);
     break;
 #endif
 
@@ -2850,7 +2852,7 @@ static CURLcode http_add_hd(struct Curl_easy *data,
       result = Curl_http2_request_upgrade(req, data);
     }
 #ifndef CURL_DISABLE_WEBSOCKETS
-    if(!result && data->conn->handler->protocol&(CURLPROTO_WS|CURLPROTO_WSS))
+    if(!result && conn->handler->protocol&(CURLPROTO_WS|CURLPROTO_WSS))
       result = Curl_ws_request(data, req);
 #endif
     break;

@@ -3061,12 +3061,13 @@ static CURLcode ssh_pollset(struct Curl_easy *data,
                             struct easy_pollset *ps)
 {
   int flags = 0;
-  if(data->conn->waitfor & KEEP_RECV)
+  struct connectdata *conn = data->conn;
+  if(conn->waitfor & KEEP_RECV)
     flags |= CURL_POLL_IN;
-  if(data->conn->waitfor & KEEP_SEND)
+  if(conn->waitfor & KEEP_SEND)
     flags |= CURL_POLL_OUT;
   return flags ?
-    Curl_pollset_change(data, ps, data->conn->sock[FIRSTSOCKET], flags, 0) :
+    Curl_pollset_change(data, ps, conn->sock[FIRSTSOCKET], flags, 0) :
     CURLE_OK;
 }
 
@@ -3334,14 +3335,9 @@ static CURLcode ssh_connect(struct Curl_easy *data, bool *done)
      function to make the reuse checks properly be able to check this bit. */
   connkeep(conn, "SSH default");
 
-  if(conn->user)
-    infof(data, "User: '%s'", conn->user);
-  else
-    infof(data, "User: NULL");
+  infof(data, "User: '%s'", conn->user);
 #ifdef CURL_LIBSSH2_DEBUG
-  if(conn->passwd) {
-    infof(data, "Password: %s", conn->passwd);
-  }
+  infof(data, "Password: %s", conn->passwd);
   sock = conn->sock[FIRSTSOCKET];
 #endif /* CURL_LIBSSH2_DEBUG */
 
